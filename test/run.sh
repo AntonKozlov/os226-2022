@@ -1,7 +1,11 @@
 #!/bin/bash
 
 B=$(readlink -f $(dirname $0))
-MAIN=$B/../main
+MAIN=runmain
+
+runmain() {
+	( cd $B/.. ; ./main )
+}
 
 map() {
 	local c="$1" i r
@@ -43,6 +47,11 @@ checkdifftimeout() {
 	checkpipe 124 0
 }
 
+checkfntimeout() {
+	< $1.in timeout 10 $MAIN | ./$1.fn
+	checkpipe 124 0
+}
+
 runtest() {
 	local r
 	cd $B/$1
@@ -52,4 +61,8 @@ runtest() {
 	return $r
 }
 
-map runtest "$@"
+if [ "$*" = "" ]; then
+	map runtest $(find test -maxdepth 1 -mindepth 1 -type d -printf '%f\n')
+else
+	map runtest "$@"
+fi
