@@ -1,8 +1,11 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
 
 #include "sched.h"
+#include "timer.h"
 #include "pool.h"
 
 struct task {
@@ -31,6 +34,14 @@ static int (*policy_cmp)(struct task *t1, struct task *t2);
 
 static struct task taskarray[16];
 static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
+
+void irq_disable(void) {
+        // TODO: sigprocmask
+}
+
+void irq_enable(void) {
+        // TODO: sigprocmask
+}
 
 static void policy_run(struct task *t) {
 	struct task **c = &runq;
@@ -72,9 +83,11 @@ void sched_cont(void (*entrypoint)(void *aspace),
 		return;
 	}
 
+	irq_disable();
+
 	if (!timeout) {
 		policy_run(current);
-		return;
+		goto out;
 	}
 
 	current->waketime = time + timeout;
@@ -85,16 +98,19 @@ void sched_cont(void (*entrypoint)(void *aspace),
 	}
 	current->next = *c;
 	*c = current;
+
+out:
+	irq_enable();
 }
 
 void sched_time_elapsed(unsigned amount) {
-	time += amount;
-
-	while (waitq && waitq->waketime <= time) {
-		struct task *t = waitq;
-		waitq = waitq->next;
-		policy_run(t);
+	// TODO
+#if 0
+	int endtime = time + amount; 
+	while (time < endtime) {
+		pause();
 	}
+#endif
 }
 
 static int fifo_cmp(struct task *t1, struct task *t2) {
@@ -113,6 +129,14 @@ static int deadline_cmp(struct task *t1, struct task *t2) {
 	return prio_cmp(t1, t2);
 }
 
+static void tick_hnd(void) {
+	// TODO
+}
+
+long sched_gettime(void) {
+	// TODO: timer_cnt
+}
+
 void sched_run(enum policy policy) {
 	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp, deadline_cmp };
 	policy_cmp = policies[policy];
@@ -124,11 +148,25 @@ void sched_run(enum policy policy) {
 		t = next;
 	}
 
-	while (runq) {
-		current = runq;
-		runq = current->next;
-		current->next = current;
+	timer_init(1, tick_hnd);
 
-		current->entry(current->as);
+	irq_disable();
+
+	while (runq || waitq) {
+		current = runq;
+		if (current) {
+			runq = current->next;
+			current->next = current;
+		}
+
+		irq_enable();
+		if (current) {
+			current->entry(current->as);
+		} else {
+			pause();
+		}
+		irq_disable();
 	}
+
+	irq_enable();
 }
