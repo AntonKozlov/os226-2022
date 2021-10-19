@@ -9,9 +9,6 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include <time.h>
-#include <sys/time.h>
-
 #include "sched.h"
 #include "usyscall.h"
 #include "pool.h"
