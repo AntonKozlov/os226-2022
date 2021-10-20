@@ -12,12 +12,6 @@
 
 static struct timeval initv;
 
-static void (*timer_hnd)(void);
-
-static void signal_hnd(int sig, siginfo_t *info, void *ctx) {
-	timer_hnd();
-}
-
 int timer_cnt(void) {
 	struct itimerval it;
 	getitimer(ITIMER_REAL, &it);
@@ -25,9 +19,7 @@ int timer_cnt(void) {
 		+ (initv.tv_usec - it.it_value.tv_usec);
 }
 
-void timer_init(int ms, void (*hnd)(void)) {
-
-	timer_hnd = hnd;
+void timer_init(int ms, void (*hnd)(int sig, siginfo_t *info, void *ctx)) {
 
 	initv.tv_sec  = ms / 1000;
 	initv.tv_usec = ms * 1000;
@@ -42,7 +34,7 @@ void timer_init(int ms, void (*hnd)(void)) {
 	}
 
 	struct sigaction act = {
-		.sa_sigaction = signal_hnd,
+		.sa_sigaction = hnd,
 		.sa_flags = SA_RESTART,
 	};
 	sigemptyset(&act.sa_mask);

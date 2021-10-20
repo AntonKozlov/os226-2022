@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
@@ -7,12 +9,24 @@
 #include "sched.h"
 #include "timer.h"
 #include "pool.h"
+#include "ctx.h"
+
+/* AMD64 Sys V ABI, 3.2.2 The Stack Frame:
+The 128-byte area beyond the location pointed to by %rsp is considered to
+be reserved and shall not be modified by signal or interrupt handlers */
+#define SYSV_REDST_SZ 128
+
+#define TICK_PERIOD 100
+
+extern void tramptramp(void);
 
 struct task {
+	char stack[8192];
+	struct ctx ctx;
+
 	void (*entry)(void *as);
 	void *as;
 	int priority;
-	int deadline;
 
 	// timeout support
 	int waketime;
@@ -23,7 +37,9 @@ struct task {
 
 static int time;
 
+static int current_start;
 static struct task *current;
+static struct task *idle;
 static struct task *runq;
 static struct task *waitq;
 
@@ -48,24 +64,36 @@ void irq_enable(void) {
 static void policy_run(struct task *t) {
 	struct task **c = &runq;
 
-	while (*c && policy_cmp(*c, t) <= 0) {
+	while (*c && (t == idle || policy_cmp(*c, t) <= 0)) {
 		c = &(*c)->next;
 	}
 	t->next = *c;
 	*c = t;
 }
 
+static void doswitch(void) {
+        struct task *old = current;
+        current = runq;
+        runq = current->next;
+
+        current_start = sched_gettime();
+        ctx_switch(&old->ctx, &current->ctx);
+}
+
+static void tasktramp(void) {
+}
+
 void sched_new(void (*entrypoint)(void *aspace),
 		void *aspace,
-		int priority,
-		int deadline) {
+		int priority) {
 
-	struct task *t = pool_alloc(&taskpool);;
+	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
 	t->as = aspace;
 	t->priority = priority;
-	t->deadline = 0 < deadline ? deadline : INT_MAX;
 	t->next = NULL;
+
+	ctx_make(&t->ctx, tasktramp, t->stack, sizeof(t->stack));
 
 	if (!lastpending) {
 		lastpending = t;
@@ -76,41 +104,31 @@ void sched_new(void (*entrypoint)(void *aspace),
 	}
 }
 
-void sched_cont(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int timeout) {
+void sched_sleep(unsigned ms) {
 
-	if (current->next != current) {
-		fprintf(stderr, "Mulitiple sched_cont\n");
-		return;
-	}
+        if (!ms) {
+                irq_disable();
+                policy_run(current);
+                doswitch();
+                irq_enable();
+                return;
+        }
 
-	irq_disable();
+        current->waketime = sched_gettime() + ms;
 
-	if (!timeout) {
-		policy_run(current);
-		goto out;
-	}
+        int curtime;
+        while ((curtime = sched_gettime()) < current->waketime) {
+                irq_disable();
+                struct task **c = &waitq;
+                while (*c && (*c)->waketime < current->waketime) {
+                        c = &(*c)->next;
+                }
+                current->next = *c;
+                *c = current;
 
-	current->waketime = time + timeout;
-
-	struct task **c = &waitq;
-	while (*c && (*c)->waketime < current->waketime) {
-		c = &(*c)->next;
-	}
-	current->next = *c;
-	*c = current;
-
-out:
-	irq_enable();
-}
-
-void sched_time_elapsed(unsigned amount) {
-	// TODO
-	int endtime = time + amount; 
-	while (time < endtime) {
-		pause();
-	}
+                doswitch();
+                irq_enable();
+        }
 }
 
 static int fifo_cmp(struct task *t1, struct task *t2) {
@@ -121,22 +139,27 @@ static int prio_cmp(struct task *t1, struct task *t2) {
 	return t2->priority - t1->priority;
 }
 
-static int deadline_cmp(struct task *t1, struct task *t2) {
-	int d = t1->deadline - t2->deadline;
-	if (d) {
-		return d;
-	}
-	return prio_cmp(t1, t2);
+static void hctx_push(greg_t *regs, unsigned long val) {
+        regs[REG_RSP] -= sizeof(unsigned long);
+        *(unsigned long *) regs[REG_RSP] = val;
 }
 
-static void tick_hnd(void) {
-	time += 1;
+static void bottom(void) {
+        time += TICK_PERIOD;
+}
 
-	while (waitq && waitq->waketime <= time) {
-		struct task *t = waitq;
-		waitq = waitq->next;
-		policy_run(t);
-	}
+static void top(int sig, siginfo_t *info, void *ctx) {
+        ucontext_t *uc = (ucontext_t *) ctx;
+        greg_t *regs = uc->uc_mcontext.gregs;
+
+        unsigned long oldsp = regs[REG_RSP];
+        regs[REG_RSP] -= SYSV_REDST_SZ;
+        hctx_push(regs, regs[REG_RIP]);
+        hctx_push(regs, sig);
+        hctx_push(regs, regs[REG_RBP]);
+        hctx_push(regs, oldsp);
+        hctx_push(regs, (unsigned long) bottom);
+        regs[REG_RIP] = (greg_t) tramptramp;
 }
 
 long sched_gettime(void) {
@@ -151,7 +174,7 @@ long sched_gettime(void) {
 }
 
 void sched_run(enum policy policy) {
-	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp, deadline_cmp };
+	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp };
 	policy_cmp = policies[policy];
 
 	struct task *t = pendingq;
@@ -164,25 +187,27 @@ void sched_run(enum policy policy) {
 	sigemptyset(&irqs);
 	sigaddset(&irqs, SIGALRM);
 
-	timer_init(1, tick_hnd);
+	timer_init(TICK_PERIOD, top);
 
 	irq_disable();
 
-	while (runq || waitq) {
-		current = runq;
-		if (current) {
-			runq = current->next;
-			current->next = current;
-		}
+	idle = pool_alloc(&taskpool);
 
-		irq_enable();
-		if (current) {
-			current->entry(current->as);
-		} else {
-			pause();
-		}
-		irq_disable();
+	current = idle;
+
+	sigset_t none;
+	sigemptyset(&none);
+
+	while (runq || waitq) {
+		if (runq) {
+                        policy_run(current);
+                        doswitch();
+                } else {
+                        sigsuspend(&none);
+                }
+
 	}
 
 	irq_enable();
 }
+
