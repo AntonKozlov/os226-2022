@@ -7,7 +7,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <elf.h>
 #include <sys/mman.h>
+#include <sys/fcntl.h>
 
 #include "sched.h"
 #include "timer.h"
@@ -26,7 +28,7 @@
 #define PAGE_SIZE 4096
 
 #define USER_PAGES 1024
-#define USER_START ((void*)0x400000)
+#define USER_START ((void*)IUSERSPACE_START)
 #define USER_STACK_PAGES 2
 
 extern int shell(int argc, char *argv[]);
@@ -35,12 +37,21 @@ extern void tramptramp(void);
 
 struct vmctx {
 	unsigned map[USER_PAGES];
+	unsigned brk;
 };
 
 struct task {
 	char stack[8192];
-	struct ctx ctx;
 	struct vmctx vm;
+
+	union {
+		struct ctx ctx;
+		struct {
+			int(*main)(int, char**);
+			int argc;
+			char **argv;
+		};
+	};
 
 	void (*entry)(void *as);
 	void *as;
@@ -72,7 +83,8 @@ static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 static sigset_t irqs;
 
 static int memfd = -1;
-static unsigned long bitmap_pages[MEM_PAGES / sizeof(unsigned long) * CHAR_BIT];
+#define LONG_BITS (sizeof(unsigned long) * CHAR_BIT)
+static unsigned long bitmap_pages[MEM_PAGES / LONG_BITS];
 
 void irq_disable(void) {
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
@@ -92,11 +104,17 @@ static int bitmap_alloc(unsigned long *bitmap, size_t size) {
 		}
 	}
 	if (!w) {
+		fprintf(stderr, "cannot find free page\n");
+		abort();
 		return -1;
 	}
 	int v = ffsl(*w + 1) - 1;
 	*w |= 1 << v;
-	return v + (w - bitmap) * sizeof(unsigned long) * CHAR_BIT;
+	return v + (w - bitmap) * LONG_BITS;
+}
+
+static void bitmap_free(unsigned long *bitmap, size_t size, unsigned v) {
+	bitmap[v / LONG_BITS] &= ~(1 << (v % LONG_BITS));
 }
 
 static void policy_run(struct task *t) {
@@ -162,8 +180,7 @@ static void tasktramp(void) {
 static void tasktramp0(void) {
 	struct ctx dummy, new;
 	vmctx_apply(&current->vm);
-	ctx_make(&new, tasktramp, USER_START + (USER_PAGES - USER_STACK_PAGES) * PAGE_SIZE,
-			USER_STACK_PAGES * PAGE_SIZE);
+	ctx_make(&new, tasktramp, USER_START + USER_PAGES * PAGE_SIZE);
 	ctx_switch(&dummy, &new);
 }
 
@@ -177,8 +194,8 @@ void sched_new(void (*entrypoint)(void *aspace),
 	t->priority = priority;
 	t->next = NULL;
 
-	vmctx_make(&t->vm, 8192);
-	ctx_make(&t->ctx, tasktramp0, t->stack, sizeof(t->stack));
+	vmctx_make(&t->vm, 4 * PAGE_SIZE);
+	ctx_make(&t->ctx, tasktramp0, t->stack + sizeof(t->stack));
 
 	if (!lastpending) {
 		lastpending = t;
@@ -328,7 +345,70 @@ static void sighnd(int sig, siginfo_t *info, void *ctx) {
 	regs[REG_RIP] += 2;
 }
 
+static int vmctx_brk(struct vmctx *vm, void *addr) {
+	int newbrk = (addr - USER_START + PAGE_SIZE - 1) / PAGE_SIZE;
+	if ((newbrk < 0) || (USER_PAGES <= newbrk)) {
+		fprintf(stderr, "Out-of-mem\n");
+		abort();
+	}
+
+	for (unsigned i = vm->brk; i < newbrk; ++i) {
+		vm->map[i] = bitmap_alloc(bitmap_pages, sizeof(bitmap_pages));
+	}
+	for (unsigned i = newbrk; i < vm->brk; ++i) {
+		bitmap_free(bitmap_pages, sizeof(bitmap_pages), vm->map[i]);
+	}
+	vm->brk = newbrk;
+
+	return 0;
+}
+
+int vmprotect(void *start, unsigned len, int prot) {
+#if 0
+	if (mprotect(start, len, prot)) {
+		perror("mprotect");
+		return -1;
+	}
+#endif
+	return 0;
+}
+
+static void exectramp(void) {
+	irq_enable();
+	current->main(current->argc, current->argv);
+	irq_disable();
+	doswitch();
+}
+
+static int do_exec(const char *path, char *argv[]) {
+	int fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		perror("open");
+		return 1;
+	}
+
+	void *rawelf = mmap(NULL, 128 * 1024, PROT_READ, MAP_PRIVATE, fd, 0);
+
+	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
+		printf("ELF header mismatch\n");
+		return 1;
+	}
+
+	// https://linux.die.net/man/5/elf
+	//
+	// Find Elf64_Ehdr -- at the very start
+	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
+	//   Find entry point (e_entry)
+}
+
+static void inittramp(void* arg) {
+	char *args = { NULL };
+	do_exec(arg, &args);
+}
+
 int main(int argc, char *argv[]) {
+	char *initpath = argv[1];
+
 	struct sigaction act = {
 		.sa_sigaction = sighnd,
 		.sa_flags = SA_RESTART,
@@ -351,5 +431,6 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	shell(0, NULL);
+	sched_new(inittramp, initpath, 0);
+	sched_run(0);
 }
