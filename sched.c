@@ -83,7 +83,20 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
-	return -1;
+	unsigned n = size / sizeof(*bitmap);
+	unsigned long *w = NULL;
+	for (int i = 0; i < n; ++i) {
+		if (bitmap[i] != -1) {
+			w = &bitmap[i];
+			break;
+		}
+	}
+	if (!w) {
+		return -1;
+	}
+	int v = ffsl(*w + 1) - 1;
+	*w |= 1 << v;
+	return v + (w - bitmap) * sizeof(unsigned long) * CHAR_BIT;
 }
 
 static void policy_run(struct task *t) {
@@ -108,6 +121,25 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+	munmap(USER_START, USER_STACK_PAGES * PAGE_SIZE);
+	for (int i = 0; i < USER_PAGES; ++i) {
+		if (vm->map[i] == -1) {
+			continue;
+		}
+		void *addr = mmap(USER_START + i * PAGE_SIZE,
+				PAGE_SIZE,
+				PROT_READ | PROT_WRITE | PROT_EXEC,
+				MAP_SHARED | MAP_FIXED,
+				memfd, vm->map[i] * PAGE_SIZE);
+		if (addr == MAP_FAILED) {
+			perror("mmap");
+			abort();
+		}
+
+		if (addr != USER_START + i * PAGE_SIZE) {
+			abort();
+		}
+	}
 }
 
 static void doswitch(void) {
