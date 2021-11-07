@@ -399,6 +399,79 @@ static int do_exec(const char *path, char *argv[]) {
 	// Find Elf64_Ehdr -- at the very start
 	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
 	//   Find entry point (e_entry)
+
+	const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) rawelf;
+	if (!ehdr->e_phoff ||
+			!ehdr->e_phnum ||
+			!ehdr->e_entry ||
+			ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
+		printf("bad ehdr\n");
+		return 1;
+	}
+	const Elf64_Phdr *phdrs = (const Elf64_Phdr *) (rawelf + ehdr->e_phoff);
+
+	void *maxaddr = USER_START;
+	for (int i = 0; i < ehdr->e_phnum; ++i) {
+		const Elf64_Phdr *ph = phdrs + i;
+		if (ph->p_type != PT_LOAD) {
+			continue;
+		}
+		if (ph->p_vaddr < IUSERSPACE_START) {
+			printf("bad section\n");
+			return 1;
+		}
+		void *phend = (void*)(ph->p_vaddr + ph->p_memsz);
+		if (maxaddr < phend) {
+			maxaddr = phend;
+		}
+	}
+
+	char **copyargv = USER_START + (USER_PAGES - 1) * PAGE_SIZE;
+	char *copybuf = (char*)(copyargv + 32);
+	char *const *arg = argv;
+	char **copyarg = copyargv;
+	while (*arg) {
+		*copyarg++ = strcpy(copybuf, *arg++);
+		copybuf += strlen(copybuf) + 1;
+	}
+	*copyarg = NULL;
+
+	if (vmctx_brk(&current->vm, maxaddr)) {
+		printf("vmctx_brk fail\n");
+		return 1;
+	}
+
+	vmctx_apply(&current->vm);
+
+	if (vmprotect(USER_START, maxaddr - USER_START, PROT_READ | PROT_WRITE)) {
+		printf("vmprotect RW failed\n");
+		return 1;
+	}
+
+	for (int i = 0; i < ehdr->e_phnum; ++i) {
+		const Elf64_Phdr *ph = phdrs + i;
+		if (ph->p_type != PT_LOAD) {
+			continue;
+		}
+		memcpy((void*)ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
+		int prot = (ph->p_flags & PF_X ? PROT_EXEC  : 0) |
+			(ph->p_flags & PF_W ? PROT_WRITE : 0) |
+			(ph->p_flags & PF_R ? PROT_READ  : 0);
+		if (vmprotect((void*)ph->p_vaddr, ph->p_memsz, prot)) {
+			printf("vmprotect section failed\n");
+			return 1;
+		}
+	}
+
+	struct ctx dummy;
+	struct ctx new;
+	ctx_make(&new, exectramp, (char*)copyargv);
+
+	irq_disable();
+	current->main = (void*)ehdr->e_entry;
+	current->argv = copyargv;
+	current->argc = copyarg - copyargv;
+	ctx_switch(&dummy, &new);
 }
 
 static void inittramp(void* arg) {
