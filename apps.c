@@ -48,7 +48,7 @@ static int os_printf(const char *fmt, ...) {
 	va_start(ap, fmt);
 	int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
-	return os_print(buf, ret);
+	return os_write(1, buf, ret);
 }
 
 static int echo(int argc, char *argv[]) {
