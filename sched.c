@@ -670,12 +670,54 @@ static int min(int a, int b) {
 
 static int pipe_read(int fd, void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+
+	void *rdbuf = buf;
+	do {
+		int data;
+		while (!(data = (p->wr < p->rd) ? sizeof(p->buf) - p->rd : p->wr - p->rd)) {
+			push_task(&p->q, current);
+			doswitch();
+		}
+
+		if (sz < data) {
+			data = sz;
+		}
+		memcpy(rdbuf, p->buf + p->rd, data);
+		p->rd = (p->rd + data) % sizeof(p->buf);
+		rdbuf += data;
+		sz -= data;
+		struct task *t = pop_task(&p->q);
+		if (t) {
+			policy_run(t);
+		}
+	} while (sz && !p->wrclose);
+	return rdbuf - buf;
 }
 
 static int pipe_write(int fd, const void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+
+	const void *wrbuf = buf;
+	do {
+		int data;
+		while (!(data = (p->wr < p->rd) ? p->rd - p->wr - 1 : sizeof(p->buf) - p->wr)) {
+			push_task(&p->q, current);
+			doswitch();
+		}
+
+		if (sz < data) {
+			data = sz;
+		}
+		memcpy(p->buf + p->wr, wrbuf, data);
+		p->wr = (p->wr + data) % sizeof(p->buf);
+		wrbuf += data;
+		sz -= data;
+		struct task *t = pop_task(&p->q);
+		if (t) {
+			policy_run(t);
+		}
+	} while (sz && !p->rdclose);
+	return wrbuf - buf;
 }
 
 static int pipe_close(int fd) {
