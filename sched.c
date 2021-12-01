@@ -147,6 +147,9 @@ static int memfd = -1;
 #define LONG_BITS (sizeof(unsigned long) * CHAR_BIT)
 static unsigned long bitmap_pages[MEM_PAGES / LONG_BITS];
 
+static void *rootfs;
+static unsigned long rootfs_sz;
+
 void irq_disable(void) {
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
 }
@@ -453,13 +456,10 @@ static void exectramp(void) {
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
 	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
-	int fd = open(elfpath, O_RDONLY);
-	if (fd < 0) {
-		perror("open");
-		return 1;
-	}
 
-	void *rawelf = mmap(NULL, 128 * 1024, PROT_READ, MAP_PRIVATE, fd, 0);
+	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
+	abort();
+	void *rawelf = NULL;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
@@ -817,6 +817,25 @@ int main(int argc, char *argv[]) {
 
 	if (ftruncate(memfd, PAGE_SIZE * MEM_PAGES) < 0) {
 		perror("ftrucate");
+		return 1;
+	}
+
+	struct stat st;
+	if (stat("rootfs.cpio", &st)) {
+		perror("stat rootfs");
+		return 1;
+	}
+
+	int fd = open("rootfs.cpio", O_RDONLY);
+	if (fd < 0) {
+		perror("open rootfs");
+		return 1;
+	}
+
+	rootfs_sz = st.st_size;
+	rootfs = mmap(NULL, rootfs_sz, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (rootfs == MAP_FAILED) {
+		perror("mmap rootfs");
 		return 1;
 	}
 
