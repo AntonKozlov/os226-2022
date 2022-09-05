@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  test-c:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -14,8 +14,20 @@ jobs:
       matrix:
         test:
           - batch
-
     steps:
-    - uses: actions/checkout@v2
-    - run: make
-    - run: ./test/run.sh ${{matrix.test}}
+      - uses: actions/checkout@v2
+      - run: make
+      - run: ./test/run-c.sh ${{matrix.test}}
+
+  test-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - batch
+    steps:
+      - uses: actions/checkout@v2
+      - run: cargo build
+      - run: ./test/run-rust.sh ${{matrix.test}}
