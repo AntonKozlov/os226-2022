@@ -17,5 +17,5 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - run: make
+    - run: cargo build
     - run: ./test/run.sh ${{matrix.test}}
