@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
 
     while (fgets(input, SIZE_OF_INPUT, stdin) != NULL)
     {
-        char* parsed_input[80];
+        char* parsed_input[SIZE_OF_INPUT];
         int size_of_parsed_input = 0;
 
         //printf("%s\n", input);
