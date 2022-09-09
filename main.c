@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #define MAX_LINE_LENGTH 256
 #define MAX_ARG_NUMBER 21
+#define MAX_ARG_LENGTH 64
 
 int echo(int argc, char *argv[])
 {
@@ -29,7 +30,7 @@ int main(int argc, char *argv[])
     char* argv_[MAX_ARG_NUMBER];
     for(int i = 0; i < MAX_ARG_NUMBER; i++)
     {
-        argv_[i] = (char*)malloc(MAX_LINE_LENGTH * sizeof(char));
+        argv_[i] = (char*)malloc(MAX_ARG_LENGTH * sizeof(char));
     }
 
     char* pointer = fgets(line, MAX_LINE_LENGTH, stdin);
