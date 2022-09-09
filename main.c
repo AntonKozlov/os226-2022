@@ -6,12 +6,12 @@
 
 int echo(int argc, char *argv[])
 {
-	for (int i = 1; i < argc; ++i)
+    for (int i = 1; i < argc; ++i)
     {
-		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
+        printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
     }
 
-	return argc - 1;
+    return argc - 1;
 }
 
 int retcode(int argc, char *argv[])
@@ -21,7 +21,7 @@ int retcode(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-	char line[MAX_LINE_LENGTH];
+    char line[MAX_LINE_LENGTH];
     char* token;
     char* command;
     char* arg;
