@@ -2,6 +2,7 @@
 # artifacts
 *.o
 *.o.d
+.idea
 /main
 
 # IDE and tooling

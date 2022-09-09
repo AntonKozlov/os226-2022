@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 B=$(readlink -f $(dirname $0))
 MAIN=runmain
