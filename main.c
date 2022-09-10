@@ -40,7 +40,7 @@ int echo(int argc, char *argv[])
 int retcode(int argc, char *argv[])
 {
 	printf("%d\n", RETCODE);
-    RETCODE = 0;
+	RETCODE = 0;
 	return RETCODE;
 }
 
