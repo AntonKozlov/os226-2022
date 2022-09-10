@@ -89,6 +89,7 @@ void interprete(char* command)
 
 int main(int argc, char *argv[])
 {
+    printf("$");
 	char input[MAX_INPUT_SIZE];
 
 	while (NULL != fgets(input, MAX_INPUT_SIZE, stdin))
@@ -96,8 +97,8 @@ int main(int argc, char *argv[])
 		char* array_of_commands_from_input[MAX_INPUT_ARGUMENTS]; // Массив команд (здесь будут команды, которые получим, распарсив строку с помощью ';').
 		int commands_counter = 0;
 		parse(input, &commands_counter, array_of_commands_from_input, true);
-        
-		for (int i = 0; i < commands_counter; i++) 
+
+		for (int i = 0; i < commands_counter; i++)
         {
             interprete(array_of_commands_from_input[i]);
 
