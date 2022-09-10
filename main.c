@@ -17,6 +17,8 @@ int echo(int argc, char *argv[]) {
 }
 
 int retcode(int argc, char *argv[]) {
+	printf("%d\n", _retcode);
+	return 0;
 }
 
 char** parse(char* input, int *output_argument_number) {
