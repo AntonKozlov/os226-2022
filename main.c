@@ -69,6 +69,15 @@ void interprete(int argc, char **argv) {
 }
 
 int main(int argc, char *argv[]) {
-	// IMPL ME
+	
+	char input[STANDARD_INPUT_SIZE];
+	int argumentNumber = 0;
+	while (fgets(input, STANDARD_INPUT_SIZE, stdin) != NULL)
+	{
+		char** parsed_input = parse(input, &argumentNumber);
+		interprete(argumentNumber, parsed_input);
+		free(parsed_input);
+	}
+
 	return 0;
 }
