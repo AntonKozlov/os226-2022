@@ -89,7 +89,6 @@ void interprete(char* command)
 
 int main(int argc, char *argv[])
 {
-    printf("$");
 	char input[MAX_INPUT_SIZE];
 
 	while (NULL != fgets(input, MAX_INPUT_SIZE, stdin))
@@ -101,8 +100,8 @@ int main(int argc, char *argv[])
 		for (int i = 0; i < commands_counter; i++)
         {
             interprete(array_of_commands_from_input[i]);
-
         }
+        
 	}
 	return 0;
 }
