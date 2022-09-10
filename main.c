@@ -97,10 +97,10 @@ int main(int argc, char *argv[])
 		int commands_counter = 0;
 		parse(input, &commands_counter, array_of_commands_from_input, true);
 
-        for (int i = 0; i < commands_counter; i++)
-        {
-            interprete(array_of_commands_from_input[i]);
-        }
+        	for (int i = 0; i < commands_counter; i++)
+        	{
+            		interprete(array_of_commands_from_input[i]);
+        	}
 
 	}
 	return 0;
