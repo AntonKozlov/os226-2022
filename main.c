@@ -74,6 +74,7 @@ void interprete(char* command)
 		if (!strcmp(array_of_parsed_command[0], commands_list[i].name))
 		{
 			commands_list[i].function(arguments_counter, array_of_parsed_command);
+			isThereNoCommand = false;
 			break;
 		}
 		else
