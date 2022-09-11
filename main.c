@@ -39,6 +39,9 @@ char *read_input(void) {
 	if (input)
 		input[strcspn(input, "\n")] = 0;
 
+	free(buffer);
+	buffer = NULL;
+
 	return input;
 }
 
@@ -84,6 +87,11 @@ int parse(char ***result, char *input, char *delimiters) {
 		result_list_size += buffer_index;
 	}
 
+	for (int i = 0; i < BUFFER_SIZE; i++) {
+		free(buffer[i]);
+		buffer[i] = NULL;
+	}
+
 	*result = result_list;
 	return result_list_size;
 }
@@ -113,6 +121,15 @@ int execute_command(shell_command *available_commands, int argc, char *argv[]) {
 	return return_code = COMMAND_NOT_FOUND;	
 }
 
+void free_array_of_strings(char **arr, int length) {
+	for (int i = 0; i < length; i++) {
+		free(arr[i]);
+		arr[i] = NULL;
+	}
+	free(arr);
+	arr = NULL;
+}
+
 int main(int argc, char *argv[]) {
 	shell_command echo_command = {"echo", echo};
 	shell_command retcode_command = {"retcode", echo};
@@ -136,7 +153,10 @@ int main(int argc, char *argv[]) {
 			}
 
 			execute_command(command_list, arguments_count, parsed_arguments);	
+			free_array_of_strings(parsed_arguments, arguments_count);
 		}
+
+		free_array_of_strings(parsed_instructions, total_instructions);
 	}
 	return 0; 
 }
