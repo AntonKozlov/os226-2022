@@ -14,7 +14,7 @@ int RETCODE = 0;
 int echo (int argc, char *argv[]);
 int retcode(int argc, char *argv[]);
 
-typedef void (*FunctionCallback)(int, char**);
+typedef int (*FunctionCallback)(int, char**);
 struct commands
 {
 	char* name;
@@ -32,15 +32,13 @@ int echo(int argc, char *argv[])
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
 
-	RETCODE = argc - 1;
-	return RETCODE;
+	return argc - 1;
 }
 
 int retcode(int argc, char *argv[])
 {
 	printf("%d\n", RETCODE);
-	RETCODE = 0;
-	return RETCODE;
+	return 0;
 }
 
 // if is_parse_on_commands then parse with only ';', else -- with ';' , '\n' and ' '.
@@ -72,8 +70,8 @@ void interprete(char* command)
 	{
 		if (!strcmp(array_of_parsed_command[0], commands_list[i].name))
 		{
-			RETCODE = 0;
-			commands_list[i].function(arguments_counter, array_of_parsed_command);
+
+			RETCODE = commands_list[i].function(arguments_counter, array_of_parsed_command);
 			isThereNoCommand = false;
 			break;
 		}
