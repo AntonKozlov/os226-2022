@@ -86,11 +86,8 @@ void interprete(char* command)
 	{
 		RETCODE = 1;
 	}
-	// Проблема кроется здесь?
-	// Стоит ли здесь выделять память через маллок?
-	// Вопрос даже не в этом. Безопасны ли следующая строчка и объявление (вместе с использованием) char* array_of_parsed_command[(MAX_INPUT_SIZE / 2)]???
+	
 	**array_of_parsed_command = NULL;
-	// Маллоком выделять массив строк слишком трудоемко...
 }
 
 int main(int argc, char *argv[])
