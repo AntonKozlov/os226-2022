@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 //------CONST------//
 #define MAX_INPUT_SIZE 1024
@@ -62,6 +63,7 @@ void parse(char* input, int* parsed_input_arguments_counter, char** parsed_input
 void interprete(char* command)
 {
 	char* array_of_parsed_command[(MAX_INPUT_SIZE / 2)];
+
 	int arguments_counter = 0;
 	bool isThereNoCommand = false;
 
@@ -84,6 +86,11 @@ void interprete(char* command)
 	{
 		RETCODE = 1;
 	}
+	// Проблема кроется здесь?
+	// Стоит ли здесь выделять память через маллок?
+	// Вопрос даже не в этом. Безопасно ли следующая строчка и объявление (вместе с использованием) char* array_of_parsed_command[(MAX_INPUT_SIZE / 2)]???
+	**array_of_parsed_command = NULL;
+	// Маллоком выделять массив строк слишком трудоемко...
 }
 
 int main(int argc, char *argv[])
