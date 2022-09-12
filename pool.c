@@ -12,7 +12,7 @@ void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long mem
 }
 
 void *pool_alloc(struct pool *p) {
-	struct pool_free_block *fb = p->free;
+    struct pool_free_block *fb = p->free;
     if (fb) {
         p->free = fb->next;
         return fb;
