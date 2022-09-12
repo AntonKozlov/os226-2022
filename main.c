@@ -1,19 +1,46 @@
+#include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
+
+#include "pool.h"
+
+static int g_retcode;
+
+#define APPS_X(X) \
+        X(echo) \
+        X(retcode) \
+        X(pooltest) \
+
+
+#define DECLARE(X) static int X(int, char *[]);
+APPS_X(DECLARE)
+#undef DECLARE
+
+static const struct app {
+        const char *name;
+        int (*fn)(int, char *[]);
+} app_list[] = {
+#define ELEM(X) { # X, X },
+        APPS_X(ELEM)
+#undef ELEM
+};
 
 const int MAX_INPUT_SIZE = 1024;
 const int MAX_TOKEN_COUNT = 128;
 const int MAX_COMMANDS_COUNT = 128;
 
-int _retcode = 0;
+static int _retcode = 0;
 
-int run_command(int tokens_count, char *tokens[MAX_TOKEN_COUNT]);
+static void run(char *buffer);
 
-int echo(int argc, char *argv[]);
+static int tokenize(char *buffer, char *result[], char delimeters[]);
 
-int retcode(int argc, char *argv[]);
+static int run_command(int tokens_count, char *tokens[MAX_TOKEN_COUNT]);
 
-void run(char *buffer);
+static int echo(int argc, char *argv[]);
+
+static int retcode(int argc, char *argv[]);
 
 int main(int argc, char *argv[]) {
     char buffer[MAX_INPUT_SIZE];
@@ -24,18 +51,27 @@ int main(int argc, char *argv[]) {
     return _retcode;
 }
 
-int tokenize(char *buffer, char *result[], char delimeters[]) {
-    int count = 0;
-    char *token = strtok(buffer, delimeters);
-    while (token) {
-        result[count++] = token;
-        token = strtok(NULL, delimeters);
+static int pooltest(int argc, char *argv[]) {
+    struct obj {
+        void *field1;
+        void *field2;
+    };
+    static struct obj objmem[4];
+    static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
+
+    if (!strcmp(argv[1], "alloc")) {
+        struct obj *o = pool_alloc(&objpool);
+        printf("alloc %d\n", o ? (o - objmem) : -1);
+        return 0;
+    } else if (!strcmp(argv[1], "free")) {
+        int iobj = atoi(argv[2]);
+        printf("free %d\n", iobj);
+        pool_free(&objpool, objmem + iobj);
+        return 0;
     }
-    return count;
 }
 
-
-void run(char *buffer) {
+static void run(char *buffer) {
     char *commands[MAX_COMMANDS_COUNT];
     int commands_count = tokenize(buffer, commands, ";\n");
     for (int cmd = 0; cmd < commands_count; cmd++) {
@@ -47,24 +83,33 @@ void run(char *buffer) {
     }
 }
 
-int run_command(int tokens_count, char *tokens[]) {
-    if (strcmp(tokens[0], "echo") == 0) {
-        return echo(tokens_count, tokens);
-    } else if (strcmp(tokens[0], "retcode") == 0) {
-        return retcode(tokens_count, tokens);
-    } else {
-        return 1;
+static int tokenize(char *buffer, char *result[], char delimeters[]) {
+    int count = 0;
+    char *token = strtok(buffer, delimeters);
+    while (token) {
+        result[count++] = token;
+        token = strtok(NULL, delimeters);
     }
+    return count;
 }
 
-int echo(int argc, char *argv[]) {
+static int run_command(int tokens_count, char *tokens[]) {
+    for (int i = 0; i < sizeof(app_list) / sizeof(struct app); ++i) {
+        if (!strcmp(app_list[i].name, tokens[0])) {
+            return app_list[i].fn(tokens_count, tokens);
+        }
+    }
+    return 1;
+}
+
+static int echo(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
     }
     return argc - 1;
 }
 
-int retcode(int argc, char *argv[]) {
+static int retcode(int argc, char *argv[]) {
     printf("%d\n", _retcode);
     return 0;
 }
