@@ -1,8 +1,26 @@
 extern crate core;
 
+use std::collections::HashMap;
 use std::io;
 
+use crate::command::Command;
+use crate::commands::{Echo, RetCode};
+use crate::util::os_err;
+
+mod command;
+mod commands;
+mod util;
+
 fn main() {
+    let commands_list: [(&str, Box<dyn Command>); 2] = [
+        ("echo", Box::new(Echo)),
+        ("retcode", Box::new(RetCode)),
+    ];
+
+    run_shell(HashMap::from(commands_list));
+}
+
+fn run_shell(mut commands: HashMap<&str, Box<dyn Command>>) {
     let mut ret_code = 0u8;
 
     for line in io::stdin().lines() {
@@ -16,25 +34,10 @@ fn main() {
             let cmd_args: Vec<&str> = cmd.split_ascii_whitespace().collect();
             let cmd_name = cmd_args[0];
 
-            ret_code = match cmd_name {
-                "echo" => echo(cmd_args, ret_code),
-                "retcode" => get_ret_code(cmd_args, ret_code),
-                &_ => {
-                    eprintln!("Unknown command {}", cmd_name);
-                    1
-                }
+            ret_code = match commands.get_mut(cmd_name) {
+                Some(cmd) => cmd.run(cmd_args, ret_code),
+                None => os_err!("Unknown command {}", cmd_name)
             };
         }
     }
-}
-
-
-fn echo(args: Vec<&str>, _curr_ret_code: u8) -> u8 {
-    println!("{}", args[1..args.len()].join(" "));
-    return (args.len() - 1).try_into().unwrap_or(u8::MAX);
-}
-
-fn get_ret_code(_args: Vec<&str>, curr_ret_code: u8) -> u8 {
-    println!("{}", curr_ret_code);
-    return 0;
 }
