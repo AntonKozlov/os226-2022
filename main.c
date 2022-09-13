@@ -1,5 +1,10 @@
 #include <stdio.h>
 
+#define LIST_OF_COMMANDS \
+    X(echo) \
+    X(retcode)
+
+
 int echo(int argc, char* argv[]) {
 	for (int i = 1; i < argc; ++i) {
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
@@ -7,26 +12,25 @@ int echo(int argc, char* argv[]) {
 	return argc - 1;
 }
 
+int RETCODE_VALUE = 0;
+
 int retcode(int argc, char* argv[]) {
-	printf("%d\n", argc);
+	printf("%d\n", RETCODE_VALUE);
 	return 0;
 }
 
-struct Commands {
-	void (*echo)(int, char*);
 
-	void (*retcode)(int, char*);
-	int retcode_value;
-
+struct commands
+{
+	char* name;
+	int (*function)(int, char*);
+} commands_list[] = {
+#define X(name) {#name, name},
+LIST_OF_COMMANDS
+#undef X
 };
 
 int main(int argc, char* argv[]) {
-
-	struct Commands commands = { 
-		echo, 
-		retcode, 
-		default 
-	};
 
 	char str[255];
 	char* next_token1 = NULL;
@@ -49,19 +53,16 @@ int main(int argc, char* argv[]) {
 			{
 				argv[i] = command_argv;
 				command_argv = strtok_s(NULL, " ", &next_token2);
-				
 			}
 
-			if (strcmp(argv[0], "echo") == 0) {
-				commands.retcode_value = i-1;
-				commands.echo(i, argv);
+			for (int j = 0; j < sizeof commands_list / sizeof(struct commands); j++)
+			{
+				if (!strcmp(argv[0], commands_list[j].name))
+				{
+					RETCODE_VALUE = commands_list[j].function(i, argv);
+					break;
+				}
 			}
-			else if (strcmp(argv[0], "retcode") == 0) {
-				commands.retcode(commands.retcode_value, argv);
-			}
-			else if () {
-			}
-
 			command = strtok_s(NULL, ";", &next_token1);
 		}
 	}
