@@ -4,17 +4,19 @@ use std::collections::HashMap;
 use std::io;
 
 use crate::command::Command;
-use crate::commands::{Echo, RetCode};
+use crate::commands::{Echo, PoolTest, RetCode};
 use crate::util::os_err;
 
 mod command;
 mod commands;
+mod mem_pool;
 mod util;
 
 fn main() {
-    let commands_list: [(&str, Box<dyn Command>); 2] = [
+    let commands_list: [(&str, Box<dyn Command>); 3] = [
         ("echo", Box::new(Echo)),
         ("retcode", Box::new(RetCode)),
+        ("pooltest", Box::new(PoolTest::new())),
     ];
 
     run_shell(HashMap::from(commands_list));
