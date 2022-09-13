@@ -3,10 +3,21 @@
 #include "util.h"
 
 struct pool {
-
+    char *memory;
+    unsigned long member_size;
+    char *free_start;
+    char *free_end;
+    struct pool_block {
+        struct pool_block *next;
+    } *free_block;
 };
 
 #define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
+    _mem,                                         \
+    _membsz,                                      \
+    _mem,                                         \
+    (char*)(_mem) + (_nmemb) * (_membsz),         \
+    NULL                                          \
 }
 
 #define POOL_INITIALIZER_ARRAY(_array) \
