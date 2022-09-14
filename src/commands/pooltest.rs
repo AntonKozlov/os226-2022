@@ -31,7 +31,7 @@ impl Command for PoolTest {
                 unsafe { self.pool.free(chunk_ptr); }
                 os_msg!("free {}", chunk_index)
             }
-            _ => os_err! { "Unknown command {}", args.join(" ") }
+            _ => os_err!("Unknown command {}", args.join(" "))
         }
     }
 }
