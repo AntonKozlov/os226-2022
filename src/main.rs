@@ -26,14 +26,14 @@ fn run_shell(mut commands: HashMap<&str, Box<dyn Command>>) {
     let mut ret_code = 0u8;
 
     for line in io::stdin().lines() {
-        let cmds = line.as_ref()
+        let cmd_exprs = line.as_ref()
             .expect("Failed to read line")
             .split(';')
             .map(|s| s.trim())
             .filter(|s| !s.is_empty());
 
-        for cmd in cmds {
-            let cmd_args: Vec<&str> = cmd.split_ascii_whitespace().collect();
+        for cmd_expr in cmd_exprs {
+            let cmd_args: Vec<&str> = cmd_expr.split_ascii_whitespace().collect();
             let cmd_name = cmd_args[0];
 
             ret_code = match commands.get_mut(cmd_name) {

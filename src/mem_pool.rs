@@ -1,45 +1,58 @@
 use std::collections::LinkedList;
-
-// Memory Pool Allocation
+use std::ptr::null;
 
 #[derive(Debug)]
-pub struct Pool {
-    pub buf: Vec<u8>,
-    pub chunk_size: usize,
-    pub chunk_count: usize,
-    pub buf_len: usize,
-    pub free_list: LinkedList<ChunkIndex>,
+pub struct MemPoolAllocator {
+    buf: Vec<u8>,
+    chunk_count: usize,
+    free_list: LinkedList<ChunkIndex>,
 }
 
 pub type ChunkIndex = usize;
 
-impl Pool {
+impl MemPoolAllocator {
     pub fn new(chunk_size: usize, chunk_count: usize) -> Self {
-        let buf_len = chunk_size * chunk_count;
-        let mut pool = Pool {
-            buf: vec![0; buf_len],
-            chunk_size,
+        let mut pool = MemPoolAllocator {
+            buf: vec![0; chunk_size * chunk_count],
             chunk_count,
-            buf_len,
             free_list: LinkedList::new(),
         };
         pool.free_all();
-        pool
+        return pool;
     }
+
+
+    pub fn get_chunk_size(&self) -> usize { self.buf.len() / self.chunk_count }
+
+    pub fn get_chunk_count(&self) -> usize { self.chunk_count }
+
+    pub fn get_buf(&self) -> &Vec<u8> { &self.buf }
+
+    pub unsafe fn get_chunk_index(&self, chunk_ptr: *const u8) -> ChunkIndex {
+        chunk_ptr.offset_from(self.buf.as_ptr()).unsigned_abs() / self.get_chunk_size()
+    }
+
 
     pub fn alloc(&mut self) -> Option<&mut [u8]> {
-        self.free_list.pop_front().map(|chunk_index| self.buf[chunk_index..].as_mut())
+        self.free_list
+            .pop_front()
+            .map(|chunk_index| {
+                let chunk_size = self.get_chunk_size();
+                let chunk_range = (chunk_size * chunk_index)..(chunk_size * (chunk_index + 1));
+                self.buf[chunk_range].as_mut()
+            })
     }
 
-    pub fn free(&mut self, adr: *const u8) {
-        let chunk_index = unsafe {
-            adr.offset_from(self.buf.as_ptr())
-        }.unsigned_abs() / self.chunk_size;
-        self.free_list.push_front(chunk_index);
+    pub unsafe fn free(&mut self, chunk_ptr: *const u8) {
+        if chunk_ptr != null() {
+            let chunk_index = self.get_chunk_index(chunk_ptr);
+            self.free_list.push_front(chunk_index);
+        }
     }
 
     pub fn free_all(&mut self) {
-        let chunk_count = self.buf_len / self.chunk_size;
-        self.free_list.clone_from(&LinkedList::from_iter((0..chunk_count).into_iter()))
+        self.free_list.clone_from(
+            &LinkedList::from_iter((0..self.chunk_count).into_iter())
+        )
     }
 }
