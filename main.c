@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stting.h>
+#include <string.h>
 
 #define LIST_OF_COMMANDS \
     X(echo) \
