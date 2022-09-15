@@ -87,7 +87,7 @@ int shell(int argc, char* argv[]) {
 		while (cmd) {
 			const char* argsep = " ";
 			char* starg;
-			char* arg = strtok_s(cmd, argsep, &starg);
+			char* arg = strtok_r(cmd, argsep, &starg);
 			char* argv[256];
 			int argc = 0;
 			while (arg) {
