@@ -83,7 +83,7 @@ int shell(int argc, char* argv[]) {
 	while (fgets(line, sizeof(line), stdin)) {
 		const char* comsep = "\n;";
 		char* stcmd;
-		char* cmd = strtok_s(line, comsep, &stcmd);
+		char* cmd = strtok_r(line, comsep, &stcmd);
 		while (cmd) {
 			const char* argsep = " ";
 			char* starg;
@@ -92,7 +92,7 @@ int shell(int argc, char* argv[]) {
 			int argc = 0;
 			while (arg) {
 				argv[argc++] = arg;
-				arg = strtok_s(NULL, argsep, &starg);
+				arg = strtok_r(NULL, argsep, &starg);
 			}
 			argv[argc] = NULL;
 
@@ -102,7 +102,7 @@ int shell(int argc, char* argv[]) {
 
 			exec(argc, argv);
 
-			cmd = strtok_s(NULL, comsep, &stcmd);
+			cmd = strtok_r(NULL, comsep, &stcmd);
 		}
 	}
 	return 0;
