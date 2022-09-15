@@ -13,12 +13,12 @@ struct pool
 };
 
 #define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
-    _mem, \
-    (char*)(_mem) + (_nmemb) * (_membsz), \
+	_mem, \
+	(char*)(_mem) + (_nmemb) * (_membsz), \
 	_nmemb, \
 	_membsz, \
 	_membsz, \
-    0 \
+	0 \
 }
 
 
