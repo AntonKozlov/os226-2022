@@ -1,12 +1,23 @@
 #pragma once
-
 #include "util.h"
+#include <stdint.h>
 
 struct pool {
-
+    void *memStart;
+    void* nextFreeBlock;
+    uint32_t blockSize;
+    uint32_t blockAmount;
+    uint32_t freeBlockAmount;
+    uint32_t initBlockAmount;
 };
 
 #define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
+    _mem,                                         \
+    _mem,                                         \
+    _membsz,                                      \
+    _nmemb,                                       \
+    _nmemb,                                       \
+    0,                                            \
 }
 
 #define POOL_INITIALIZER_ARRAY(_array) \
