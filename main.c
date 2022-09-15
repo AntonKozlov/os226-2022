@@ -1,109 +1,113 @@
-#include <stdio.h>
-#include <string.h>
+
 #include <stdbool.h>
+#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-//------CONST------//
-#define MAX_INPUT_SIZE 1024
-//-----------------//
+#include "pool.h"
 
-//------GLOBAL_VARIABLES------//
-int RETCODE = 0;
-//----------------------------//
+static int g_retcode;
 
-//------PAYLOAD------//
-int echo (int argc, char *argv[]);
-int retcode(int argc, char *argv[]);
+#define APPS_X(X) \
+        X(echo) \
+        X(retcode) \
+        X(pooltest) \
 
-typedef int (*FunctionCallback)(int, char**);
-struct commands
-{
-	char* name;
-	FunctionCallback function;
-} commands_list[] = {
-		{"echo",    (FunctionCallback) &echo},
-		{"retcode", (FunctionCallback) &retcode}
+
+#define DECLARE(X) static int X(int, char *[]);
+APPS_X(DECLARE)
+#undef DECLARE
+
+static const struct app {
+        const char *name;
+        int (*fn)(int, char *[]);
+} app_list[] = {
+#define ELEM(X) { # X, X },
+        APPS_X(ELEM)
+#undef ELEM
 };
-//-------------------//
 
-int echo(int argc, char *argv[])
-{
-	for (int i = 1; i < argc; ++i)
-	{
+static int echo(int argc, char *argv[]) {
+	for (int i = 1; i < argc; ++i) {
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
-
 	return argc - 1;
 }
 
-int retcode(int argc, char *argv[])
-{
-	printf("%d\n", RETCODE);
+static int retcode(int argc, char *argv[]) {
+	printf("%d\n", g_retcode);
 	return 0;
 }
 
-// if is_parse_on_commands then parse with only ';', else -- with ';' , '\n' and ' '.
-void parse(char* input, int* parsed_input_arguments_counter, char** parsed_input_array, bool is_parse_on_commands)
-{
-	char* input_delimit = "; \n";
-	if (is_parse_on_commands)
-	{
-		input_delimit = ";\n";
-	}
-
-	char* parsed_input_word = strtok(input, input_delimit);
-
-	while (NULL != parsed_input_word)
-	{
-		parsed_input_array[(*parsed_input_arguments_counter)++] = parsed_input_word;
-		parsed_input_word = strtok(NULL, input_delimit);
-	}
-}
-
-void interprete(char* command)
-{
-	char* array_of_parsed_command[(MAX_INPUT_SIZE / 2)];
-
-	int arguments_counter = 0;
-	bool isThereNoCommand = false;
-
-	parse(command, &arguments_counter, array_of_parsed_command, false);
-	for (int i = 0; i < sizeof commands_list/sizeof (struct commands); i++)
-	{
-		if (!strcmp(array_of_parsed_command[0], commands_list[i].name))
-		{
-
-			RETCODE = commands_list[i].function(arguments_counter, array_of_parsed_command);
-			isThereNoCommand = false;
+static int exec(int argc, char *argv[]) {
+	const struct app *app = NULL;
+	for (int i = 0; i < ARRAY_SIZE(app_list); ++i) {
+		if (!strcmp(argv[0], app_list[i].name)) {
+			app = &app_list[i];
 			break;
 		}
-		else
-		{
-			isThereNoCommand = true;
-		}
 	}
-	if (isThereNoCommand)
-	{
-		RETCODE = 1;
+
+	if (!app) {
+		printf("Unknown command\n");
+		return 1;
 	}
-	
-	**array_of_parsed_command = NULL;
+
+	g_retcode = app->fn(argc, argv);
+	return g_retcode;
 }
 
-int main(int argc, char *argv[])
-{
-	char input[MAX_INPUT_SIZE];
+static int pooltest(int argc, char *argv[]) {
+	struct obj {
+		void *field1;
+		void *field2;
+	};
+	static struct obj objmem[4];
+	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
 
-	while (NULL != fgets(input, MAX_INPUT_SIZE, stdin))
-	{
-		char* array_of_commands_from_input[(MAX_INPUT_SIZE / 2)]; // Массив команд (здесь будут команды, которые получим, распарсив строку с помощью ';').
-		int commands_counter = 0;
-		parse(input, &commands_counter, array_of_commands_from_input, true);
+	if (!strcmp(argv[1], "alloc")) {
+		struct obj *o = pool_alloc(&objpool);
+		printf("alloc %d\n", o ? (o - objmem) : -1);
+		return 0;
+	} else if (!strcmp(argv[1], "free")) {
+		int iobj = atoi(argv[2]);
+		printf("free %d\n", iobj);
+		pool_free(&objpool, objmem + iobj);
+		return 0;
+	}
+}
 
-		for (int i = 0; i < commands_counter; i++)
-		{
-			interprete(array_of_commands_from_input[i]);
+int shell(int argc, char *argv[]) {
+	char line[256];
+	while (fgets(line, sizeof(line), stdin)) {
+		const char *comsep = "\n;";
+		char *stcmd;
+		char *cmd = strtok_r(line, comsep, &stcmd);
+		while (cmd) {
+			const char *argsep = " ";
+			char *starg;
+			char *arg = strtok_r(cmd, argsep, &starg);
+			char *argv[256];
+			int argc = 0;
+			while (arg) {
+				argv[argc++] = arg;
+				arg = strtok_r(NULL, argsep, &starg);
+			}
+			argv[argc] = NULL;
+
+			if (!argc) {
+				break;
+			}
+
+			exec(argc, argv);
+
+			cmd = strtok_r(NULL, comsep, &stcmd);
 		}
 	}
 	return 0;
+}
+
+
+int main(int argc, char *argv[]) {
+	shell(0, NULL);
 }
