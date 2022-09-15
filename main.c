@@ -1,4 +1,4 @@
-
+﻿
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
@@ -19,28 +19,28 @@ APPS_X(DECLARE)
 #undef DECLARE
 
 static const struct app {
-        const char *name;
-        int (*fn)(int, char *[]);
+	const char* name;
+	int (*fn)(int, char* []);
 } app_list[] = {
 #define ELEM(X) { # X, X },
-        APPS_X(ELEM)
+		APPS_X(ELEM)
 #undef ELEM
 };
 
-static int echo(int argc, char *argv[]) {
+static int echo(int argc, char* argv[]) {
 	for (int i = 1; i < argc; ++i) {
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
 	return argc - 1;
 }
 
-static int retcode(int argc, char *argv[]) {
+static int retcode(int argc, char* argv[]) {
 	printf("%d\n", g_retcode);
 	return 0;
 }
 
-static int exec(int argc, char *argv[]) {
-	const struct app *app = NULL;
+static int exec(int argc, char* argv[]) {
+	const struct app* app = NULL;
 	for (int i = 0; i < ARRAY_SIZE(app_list); ++i) {
 		if (!strcmp(argv[0], app_list[i].name)) {
 			app = &app_list[i];
@@ -57,19 +57,20 @@ static int exec(int argc, char *argv[]) {
 	return g_retcode;
 }
 
-static int pooltest(int argc, char *argv[]) {
+static int pooltest(int argc, char* argv[]) {
 	struct obj {
-		void *field1;
-		void *field2;
+		void* field1;
+		void* field2;
 	};
 	static struct obj objmem[4];
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
 
 	if (!strcmp(argv[1], "alloc")) {
-		struct obj *o = pool_alloc(&objpool);
+		struct obj* o = pool_alloc(&objpool);
 		printf("alloc %d\n", o ? (o - objmem) : -1);
 		return 0;
-	} else if (!strcmp(argv[1], "free")) {
+	}
+	else if (!strcmp(argv[1], "free")) {
 		int iobj = atoi(argv[2]);
 		printf("free %d\n", iobj);
 		pool_free(&objpool, objmem + iobj);
@@ -77,21 +78,21 @@ static int pooltest(int argc, char *argv[]) {
 	}
 }
 
-int shell(int argc, char *argv[]) {
+int shell(int argc, char* argv[]) {
 	char line[256];
 	while (fgets(line, sizeof(line), stdin)) {
-		const char *comsep = "\n;";
-		char *stcmd;
-		char *cmd = strtok_r(line, comsep, &stcmd);
+		const char* comsep = "\n;";
+		char* stcmd;
+		char* cmd = strtok_s(line, comsep, &stcmd);
 		while (cmd) {
-			const char *argsep = " ";
-			char *starg;
-			char *arg = strtok_r(cmd, argsep, &starg);
-			char *argv[256];
+			const char* argsep = " ";
+			char* starg;
+			char* arg = strtok_s(cmd, argsep, &starg);
+			char* argv[256];
 			int argc = 0;
 			while (arg) {
 				argv[argc++] = arg;
-				arg = strtok_r(NULL, argsep, &starg);
+				arg = strtok_s(NULL, argsep, &starg);
 			}
 			argv[argc] = NULL;
 
@@ -101,13 +102,15 @@ int shell(int argc, char *argv[]) {
 
 			exec(argc, argv);
 
-			cmd = strtok_r(NULL, comsep, &stcmd);
+			cmd = strtok_s(NULL, comsep, &stcmd);
 		}
 	}
 	return 0;
 }
 
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	shell(0, NULL);
+
+	return 0;
 }
