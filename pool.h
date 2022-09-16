@@ -18,7 +18,7 @@ struct pool {
         _mem,                                     \
         _mem + _nmemb * _membsz                   \
         NULL                                      \
-}
+};
 
 #define POOL_INITIALIZER_ARRAY(_array) \
 	POOL_INITIALIZER(_array, ARRAY_SIZE(_array), sizeof((_array)[0]));
