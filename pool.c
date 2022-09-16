@@ -3,6 +3,7 @@
 
 #include "pool.h"
 
+// Source : https://antonkozlov.github.io/cs226/#32
 void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long membsz) {
 	p->free = NULL;
 	p->mem = mem;
