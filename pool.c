@@ -31,7 +31,7 @@ void *pool_alloc(struct pool *p) {
 void pool_free(struct pool *p, void *ptr) {
 	if (ptr)
 	{
-		struct free_block* f_block = p->free_pool_block;
+		struct free_block* f_block = ptr;
 		f_block->next_block = p->free_pool_block;
 		p->free_pool_block = f_block;
 	}
