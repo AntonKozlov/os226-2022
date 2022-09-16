@@ -7,7 +7,7 @@ void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long mem
     p->mem = mem;
     p->membsz = membsz;
     p->freestart = mem;
-    p->freeend = mem + nmemb * membsz;
+    p->freeend = p->mem + nmemb * membsz;
     p->free = NULL;
 }
 
