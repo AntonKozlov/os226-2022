@@ -29,11 +29,11 @@ void *pool_alloc(struct pool *p) {
 }
 
 void pool_free(struct pool *p, void *ptr) {
-	struct free_block* f_block = p->free_pool_block;
-	while (f_block)
+	if (ptr)
 	{
-		f_block = f_block->next_block;
+		struct free_block* f_block = p->free_pool_block;
+		f_block->next_block = p->free_pool_block;
+		p->free_pool_block = f_block;
 	}
-	f_block = (struct free_block*)ptr;
 	return;
 }
