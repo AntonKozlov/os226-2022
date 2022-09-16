@@ -40,6 +40,7 @@ int main(int argc, char *argv[]) {
         command = strtok(input, sep);
 
         while (command != NULL) {
+            exit = 0;
             commands[count++] = command;
             command = strtok(NULL, sep);
         }
