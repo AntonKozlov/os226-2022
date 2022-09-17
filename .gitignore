@@ -7,3 +7,8 @@
 # IDE and tooling
 /tags
 /.vagrant
+
+*.exe
+*.ilk
+*obj
+*pdb
