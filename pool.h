@@ -2,16 +2,14 @@
 
 #include "util.h"
 
-struct pool 
-{
+struct pool {
 	int bit_scale;
 	int size;
 	int count;
 	void* mem_begin;
 };
 
-#define POOL_INITIALIZER(_mem, _nmemb, _membsz) \
-{ 				\
+#define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
 	0, 			\
 	_membsz, 	\
 	_nmemb,		\
