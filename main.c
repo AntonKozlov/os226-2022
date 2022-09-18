@@ -1,3 +1,6 @@
+//
+// Created by letit6E on 18.09.2022.
+//
 
 #include <stdbool.h>
 #include <string.h>
@@ -19,11 +22,11 @@ APPS_X(DECLARE)
 #undef DECLARE
 
 static const struct app {
-        const char *name;
-        int (*fn)(int, char *[]);
+	const char *name;
+	int (*fn)(int, char *[]);
 } app_list[] = {
 #define ELEM(X) { # X, X },
-        APPS_X(ELEM)
+		APPS_X(ELEM)
 #undef ELEM
 };
 
@@ -64,6 +67,7 @@ static int pooltest(int argc, char *argv[]) {
 	};
 	static struct obj objmem[4];
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
+	pool_init(&objpool, objmem, ARRAY_SIZE(objmem), sizeof(struct obj));
 
 	if (!strcmp(argv[1], "alloc")) {
 		struct obj *o = pool_alloc(&objpool);
