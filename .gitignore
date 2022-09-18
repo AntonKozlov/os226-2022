@@ -8,3 +8,5 @@
 /tags
 /.vagrant
 .vscode
+.editorconfig
+/bin
