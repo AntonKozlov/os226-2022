@@ -25,6 +25,7 @@ int retcode()
 	printf("%d\n", LASTRETCODE);
 	return 0;
 }
+
 void parse(char* InputString)
 {
 	char* ProcessedPart = strtok(InputString, CONST_PARSE_DELIMETERS);
@@ -56,8 +57,8 @@ void parse(char* InputString)
 			}
 			LASTRETCODE = echo(argc, argv);
 			
-
-			free(*argv);
+			for (int alloc = 1; alloc < MAX_ARGUMENT_COUNT; alloc++)
+				free(argv[alloc]);
 		}
 	}
 	free(ProcessedPart);
