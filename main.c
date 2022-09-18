@@ -1,12 +1,31 @@
 #include <stdio.h>
 #include <string.h>
-#include <pool.h>
-
+#include "pool.h"
 
 #define MAX_INPUT_LENGTH 512
 #define MAX_NUMBER_ARGS 64
 
 int RETCODE = 0;
+
+#define APPS_X(X) \
+        X(echo) \
+        X(retcode) \
+        X(pooltest) \
+
+
+#define DECLARE(X) static int X(int, char *[]);
+APPS_X(DECLARE)
+#undef DECLARE
+
+static const struct app 
+{
+        const char *name;
+        int (*fn)(int, char *[]);
+} app_list[] = {
+#define ELEM(X) { # X, X },
+        APPS_X(ELEM)
+#undef ELEM
+};
 
 int echo(int argc, char *argv[]) 
 {
@@ -25,14 +44,24 @@ int retcode(int argc, char *argv[])
 
 void runCommand(int count, char* args[])
 {
-	if(strncmp(args[0], "echo", 4) == 0)
+	const struct app *app = NULL;
+	for (int i = 0; i < ARRAY_SIZE(app_list); ++i) 
 	{
-		RETCODE = echo(count, args);
+		if (!strcmp(args[0], app_list[i].name)) 
+		{
+			app = &app_list[i];
+			break;
+		}
 	}
-	else if(strncmp(args[0], "retcode", 7) == 0)
+
+	if (!app) 
 	{
-		RETCODE = retcode(count, args);
+		printf("Unknown command\n");
+		return 1;
 	}
+
+	RETCODE = app->fn(count, args);
+	return RETCODE;
 }
 
 void execute(char* input)
@@ -68,19 +97,24 @@ void execute(char* input)
 	}
 }
 
-static int pooltest(int argc, char *argv[]) {
-	struct obj {
+static int pooltest(int argc, char *argv[]) 
+{
+	struct obj 
+	{
 		void *field1;
 		void *field2;
 	};
 	static struct obj objmem[4];
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
 
-	if (!strcmp(argv[1], "alloc")) {
+	if (!strcmp(argv[1], "alloc")) 
+	{
 		struct obj *o = pool_alloc(&objpool);
 		printf("alloc %d\n", o ? (o - objmem) : -1);
 		return 0;
-	} else if (!strcmp(argv[1], "free")) {
+	} 
+	else if (!strcmp(argv[1], "free")) 
+	{
 		int iobj = atoi(argv[2]);
 		printf("free %d\n", iobj);
 		pool_free(&objpool, objmem + iobj);
