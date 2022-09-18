@@ -21,10 +21,16 @@ int retcode(int argc, char *argv[]) {
 
 char *read_input(void) {
 	char *buffer = malloc(BUFFER_SIZE);
-	char *input = fgets(buffer, BUFFER_SIZE, stdin);
+    char *input = NULL;
 	int input_size = 0;
 
-	while (buffer && strlen(buffer) >= BUFFER_SIZE - 1 && buffer[BUFFER_SIZE - 1] != '\n') {  
+	do {
+        buffer = fgets(buffer, BUFFER_SIZE, stdin);
+
+        if (!buffer) {
+            break;
+        }
+
 		input = realloc(input, input_size + BUFFER_SIZE);
 		input_size += BUFFER_SIZE;
 
@@ -33,8 +39,7 @@ char *read_input(void) {
 		}
 
 		strcat(input, buffer);
-		buffer = fgets(buffer, BUFFER_SIZE, stdin);
-	}
+	} while (buffer && strlen(buffer) >= BUFFER_SIZE - 1 && buffer[BUFFER_SIZE - 1] != '\n');
 
 	if (input)
 		input[strcspn(input, "\n")] = 0;
@@ -62,7 +67,7 @@ char **flush_buffer(char **destination, int destination_size, char **buffer, int
 // and put the results in `destination`
 // return value: number of parsed tokens
 int parse(char ***result, char *input, char *delimiters) {
-	char *buffer[BUFFER_SIZE];
+	char *buffer[BUFFER_SIZE] = {NULL};
 	int buffer_index = 0;
 	
 	char **result_list = NULL;
@@ -85,11 +90,6 @@ int parse(char ***result, char *input, char *delimiters) {
 	if (buffer_index > 0) {
 		result_list = flush_buffer(result_list, result_list_size, buffer, buffer_index);
 		result_list_size += buffer_index;
-	}
-
-	for (int i = 0; i < BUFFER_SIZE; i++) {
-		free(buffer[i]);
-		buffer[i] = NULL;
 	}
 
 	*result = result_list;
@@ -122,10 +122,6 @@ int execute_command(shell_command *available_commands, int argc, char *argv[]) {
 }
 
 void free_array_of_strings(char **arr, int length) {
-	for (int i = 0; i < length; i++) {
-		free(arr[i]);
-		arr[i] = NULL;
-	}
 	free(arr);
 	arr = NULL;
 }
