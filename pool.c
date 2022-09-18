@@ -4,7 +4,11 @@
 #include "pool.h"
 
 void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long membsz) {
-    *p = POOL_INITIALIZER(mem, nmemb, membsz);
+    p->mem = mem;
+    p->memb_sz = membsz;
+    p->free_st = mem;
+    p->free_end = p->memory + nmemb * membsz;
+    p->free = NULL;
 }
 
 void *pool_alloc(struct pool *p) {

@@ -16,7 +16,7 @@ struct pool {
     _mem,                                         \
     _membsz,                                      \
     _mem,                                         \
-    (_mem) + (_nmemb) * (_membz),                 \
+    (_mem) + (_nmemb) * (_membsz),                \
     NULL                                          \
 }
 
