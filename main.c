@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <pool.h>
+
 
 #define MAX_INPUT_LENGTH 512
 #define MAX_NUMBER_ARGS 64
@@ -63,6 +65,26 @@ void execute(char* input)
 
 		counter = 0;
 		args_str = strtok_r(NULL, ";\n", &args_ptr);
+	}
+}
+
+static int pooltest(int argc, char *argv[]) {
+	struct obj {
+		void *field1;
+		void *field2;
+	};
+	static struct obj objmem[4];
+	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
+
+	if (!strcmp(argv[1], "alloc")) {
+		struct obj *o = pool_alloc(&objpool);
+		printf("alloc %d\n", o ? (o - objmem) : -1);
+		return 0;
+	} else if (!strcmp(argv[1], "free")) {
+		int iobj = atoi(argv[2]);
+		printf("free %d\n", iobj);
+		pool_free(&objpool, objmem + iobj);
+		return 0;
 	}
 }
 
