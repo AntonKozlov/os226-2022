@@ -66,7 +66,7 @@ static int pooltest(int argc, char *argv[]) {
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
 
 	if (!strcmp(argv[1], "alloc")) {
-		struct obj *o = pool_alloc(&objpool);
+		struct obj* o = pool_alloc(&objpool);
 		printf("alloc %d\n", o ? (o - objmem) : -1);
 		return 0;
 	} else if (!strcmp(argv[1], "free")) {
