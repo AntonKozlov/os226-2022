@@ -110,8 +110,7 @@ static int pooltest(int argc, char* argv[]) {
 		struct obj* o = pool_alloc(&objpool);
 		printf("alloc %ld\n", o ? (o - objmem) : -1);
 		return 0;
-	}
-	else if (!strcmp(argv[1], "free")) {
+	} else if (!strcmp(argv[1], "free")) {
 		int iobj = atoi(argv[2]);
 		printf("free %d\n", iobj);
 		pool_free(&objpool, objmem + iobj);
