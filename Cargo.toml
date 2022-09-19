@@ -2,3 +2,8 @@
 name = "os226-2022"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+libc = "0.2.133"
+nix = "0.25.0"
+paste = "1.0.9"
