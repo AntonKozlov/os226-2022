@@ -14,12 +14,15 @@ static int g_retcode;
 
 
 #define DECLARE(X) static int X(int, char *[]);
+
 APPS_X(DECLARE)
+
 #undef DECLARE
 
 static const struct app {
-        const char *name;
-        int (*fn)(int, char *[]);
+    const char *name;
+
+    int (*fn)(int, char *[]);
 } app_list[] = {
 #define ELEM(X) { # X, X },
         APPS_X(ELEM)
