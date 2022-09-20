@@ -2,6 +2,7 @@
 
 #include "util.h"
 
+<<<<<<< HEAD
 struct pool_free_block {
 	struct pool_free_block *next;
 };
@@ -20,6 +21,24 @@ struct pool {
 	.freehead = NULL, \
 	.freestart = (char*)(_mem), \
 	.freeend = (char*)(_mem) + (_nmemb) * (_membsz), \
+=======
+struct pool {
+    char *memory;
+    unsigned long member_size;
+    char *free_start;
+    char *free_end;
+    struct pool_block {
+        struct pool_block *next;
+    } *free_block;
+};
+
+#define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
+    _mem,                                         \
+    _membsz,                                      \
+    _mem,                                         \
+    (char*)(_mem) + (_nmemb) * (_membsz),         \
+    NULL                                          \
+>>>>>>> a3d0a72 (Implement pool allocator)
 }
 
 #define POOL_INITIALIZER_ARRAY(_array) \
