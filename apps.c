@@ -56,7 +56,7 @@ static int echo(int argc, char *argv[])
 
 static int retcode(int argc, char *argv[])
 {
-	printf("%d\n", g_retcode);
+	printf("%d\n", _retcode);
 	fflush(stdout);
 	return 0;
 }
@@ -125,16 +125,6 @@ static int interprete(int argc, char **argv)
 	}
 
 	return 0;
-}
-
-if (arguments_count > 0)
-{
-	exec(arguments_count - 1, arguments);
-}
-arguments_count = 0;
-}
-
-return 0;
 }
 
 static int pooltest(int argc, char *argv[])
