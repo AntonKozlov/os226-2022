@@ -6,7 +6,7 @@ use std::process::exit;
 
 use crate::command::Command;
 use crate::commands::{Echo, PoolTest, RetCode, SysCallTest};
-use crate::syscall::{define_syscall, install_signal_handler};
+use crate::syscall::define_syscall;
 use crate::util::os_err;
 
 mod command;
@@ -50,4 +50,12 @@ fn run_shell(mut commands: HashMap<&str, Box<dyn Command>>) {
             };
         }
     }
+}
+
+
+// C FFI
+
+#[link(name = "syscall", kind = "static")]
+extern "C" {
+    fn install_signal_handler() -> i32;
 }
