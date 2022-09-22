@@ -1,44 +1,34 @@
+
 #include <stddef.h>
+
 #include "pool.h"
-#define ull unsigned long long
 
-void pool_init(struct pool* p, void* mem, unsigned long nmemb, unsigned long membsz)
-{
-
+void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long membsz) {
+	p->mem = mem;
+	p->membsz = membsz;
+	p->freestart = mem;
+	p->freeend = p->freestart + nmemb * membsz;
+	p->freehead = NULL;
 }
 
-void* pool_alloc(struct pool* p)
-{
-    if (p->freeblocks == 0)
-    {
-        return NULL;
-    }
+void *pool_alloc(struct pool *p) {
+	if (p->freestart < p->freeend) {
+		void *r = p->freestart;
+		p->freestart += p->membsz;
+		return r;
+	}
 
-    // TODO уменьшать freeblocks
-    if (p->initialized_blocks < p->numblk)
-    {
-        ull* var = ((ull*)((ull)p->mem_begin + p->initialized_blocks * p->memblksz + p->memblksz));
-        *((ull*)((ull)p->mem_begin + p->initialized_blocks * p->memblksz)) = var;
-        p->initialized_blocks++;
-    }
+	struct pool_free_block *fb = p->freehead;
+	if (fb) {
+		p->freehead = fb->next;
+		return fb;
+	}
 
-    if (p->freeblocks == 0)
-    {
-        p->ptr = NULL;
-        return NULL;
-    }
-    else
-    {
-        void* tmpptr = p->ptr;
-        p->ptr = (void*)(*(ull*)p->ptr);
-        p->freeblocks--;
-        return  tmpptr;
-    }
+	return NULL;
 }
 
-void pool_free(struct pool* p, void* ptr)
-{
-    *(unsigned long long*)ptr = (unsigned long long)p->ptr;
-    p->ptr = ptr;
-    p->freeblocks += 1;
+void pool_free(struct pool *p, void *ptr) {
+	struct pool_free_block *fb = ptr;
+	fb->next = p->freehead;
+	p->freehead = fb;
 }
