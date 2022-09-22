@@ -1,7 +1,3 @@
-//
-// Created by letit6E on 18.09.2022.
-//
-
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
@@ -67,7 +63,6 @@ static int pooltest(int argc, char *argv[]) {
 	};
 	static struct obj objmem[4];
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
-	pool_init(&objpool, objmem, ARRAY_SIZE(objmem), sizeof(struct obj));
 
 	if (!strcmp(argv[1], "alloc")) {
 		struct obj *o = pool_alloc(&objpool);
