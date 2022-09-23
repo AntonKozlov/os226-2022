@@ -1,58 +1,51 @@
-use std::collections::LinkedList;
 use std::ptr::null;
 
 #[derive(Debug)]
-pub struct MemPoolAllocator {
-    buf: Vec<u8>,
-    chunk_count: usize,
-    free_list: LinkedList<ChunkIndex>,
+pub struct MemPoolAllocator<T> {
+    buf: Vec<T>,
+    bit_scale: u64,
 }
 
-pub type ChunkIndex = usize;
-
-impl MemPoolAllocator {
-    pub fn new(chunk_size: usize, chunk_count: usize) -> Self {
-        let mut pool = MemPoolAllocator {
-            buf: vec![0; chunk_size * chunk_count],
-            chunk_count,
-            free_list: LinkedList::new(),
-        };
-        pool.free_all();
-        return pool;
+impl<T: Default + Clone> MemPoolAllocator<T> {
+    pub fn new(chunks_count: usize) -> Self {
+        if chunks_count == 0 || chunks_count > u64::BITS as usize {
+            panic!(
+                "Illegal count of chunks in the memory pool. Allowed counts are {}..{}, but received {}",
+                1, u64::BITS,
+                chunks_count
+            )
+        }
+        MemPoolAllocator {
+            buf: vec![T::default(); chunks_count],
+            bit_scale: 0,
+        }
     }
 
 
-    pub fn get_chunk_size(&self) -> usize { self.buf.len() / self.chunk_count }
-
-    pub fn get_chunk_count(&self) -> usize { self.chunk_count }
-
-    pub fn get_buf(&self) -> &Vec<u8> { &self.buf }
-
-    pub unsafe fn get_chunk_index(&self, chunk_ptr: *const u8) -> ChunkIndex {
-        chunk_ptr.offset_from(self.buf.as_ptr()).unsigned_abs() / self.get_chunk_size()
+    pub fn alloc(&mut self) -> Option<&mut T> {
+        let free_chunk_index = self.bit_scale.trailing_ones() as usize;
+        if free_chunk_index < self.buf.len() {
+            self.bit_scale |= 1 << free_chunk_index;
+            return self.buf.get_mut(free_chunk_index);
+        }
+        return None;
     }
 
-
-    pub fn alloc(&mut self) -> Option<&mut [u8]> {
-        self.free_list
-            .pop_front()
-            .map(|chunk_index| {
-                let chunk_size = self.get_chunk_size();
-                let chunk_range = (chunk_size * chunk_index)..(chunk_size * (chunk_index + 1));
-                self.buf[chunk_range].as_mut()
-            })
-    }
-
-    pub unsafe fn free(&mut self, chunk_ptr: *const u8) {
+    pub unsafe fn free(&mut self, chunk_ptr: *const T) {
         if chunk_ptr != null() {
             let chunk_index = self.get_chunk_index(chunk_ptr);
-            self.free_list.push_front(chunk_index);
+            self.bit_scale &= !(1 << chunk_index);
         }
     }
 
     pub fn free_all(&mut self) {
-        self.free_list.clone_from(
-            &LinkedList::from_iter((0..self.chunk_count).into_iter())
-        )
+        self.bit_scale = 0;
+    }
+
+
+    pub fn get_buf(&self) -> &Vec<T> { &self.buf }
+
+    pub unsafe fn get_chunk_index(&self, chunk_ptr: *const T) -> usize {
+        chunk_ptr.offset_from(self.buf.as_ptr()).unsigned_abs()
     }
 }
