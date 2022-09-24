@@ -6,28 +6,29 @@
 void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long membsz) {
 	p->mem = mem;
 	p->membsz = membsz;
-	p->head = mem;
-	p->tail = (char *) mem + nmemb * membsz;
-	p->free = NULL;
+	p->freestart = mem;
+	p->freeend = p->freestart + nmemb * membsz;
+	p->freehead = NULL;
 }
 
 void *pool_alloc(struct pool *p) {
-	void *allocated_chunk = NULL;
-	if (p->free) {
-		allocated_chunk = p->free;
-		p->free = (p->free)->next;
-	} else if (p->head < p->tail) {
-		allocated_chunk = p->head;
-		p->head += p->membsz;
+	if (p->freestart < p->freeend) {
+		void *r = p->freestart;
+		p->freestart += p->membsz;
+		return r;
 	}
 
-	return allocated_chunk;
+	struct pool_free_block *fb = p->freehead;
+	if (fb) {
+		p->freehead = fb->next;
+		return fb;
+	}
+
+	return NULL;
 }
 
 void pool_free(struct pool *p, void *ptr) {
-	if (ptr) {
-		void *prev_head = p->free;
-		p->free = ptr;
-		(p->free)->next = prev_head;
-	}
+	struct pool_free_block *fb = ptr;
+	fb->next = p->freehead;
+	p->freehead = fb;
 }
