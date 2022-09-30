@@ -27,7 +27,7 @@ typedef unsigned long (*sys_call_t)(
 #define SC_TRAMPOLINE3(ret, name, type1, name1, type2, name2, type3, name3) \
 	static ret sys_ ## name(type1, type2, type3); \
 	static unsigned long sys_tr_ ## name(unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, void *rest) { \
-		return (ret) sys_ ## name(((type1)arg1, arg1), ((type2)arg2, arg2)) \
+		return (ret) sys_ ## name((type1)arg1, (type2)arg2, (type3)arg3); \
 	}
 #define SC_TRAMPOLINE4(ret, name, type1, name1, type2, name2, type3, name3, type4, name4) \
 	static ret sys_ ## name(type1, type2, type3, type4); \

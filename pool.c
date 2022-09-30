@@ -15,7 +15,7 @@ void *pool_alloc(struct pool *p) {
 	if (p->freestart < p->freeend) {
 		void *r = p->freestart;
 		p->freestart += p->membsz;
-		return r; 
+		return r;
 	}
 
 	struct pool_free_block *fb = p->freehead;

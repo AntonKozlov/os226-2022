@@ -18,9 +18,6 @@ static void sighnd(int sig, siginfo_t *info, void *ctx) {
 	syscall_do(regs[REG_RAX], regs[REG_RBX],
 			regs[REG_RCX], regs[REG_RDX],
 			regs[REG_RSI], (void *) regs[REG_RDI]);
-
-			regs[REG_RAX] = regs[REG_RCX];
-			regs[REG_RIP] += 2;
 }
 
 int main(int argc, char *argv[]) {
