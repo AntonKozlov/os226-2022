@@ -21,7 +21,6 @@ static void sighnd(int sig, siginfo_t *info, void *ctx)
 							   regs[REG_RSI], (void *)regs[REG_RDI]);
 
 	regs[REG_RIP] += 2;
-	e
 }
 
 int main(int argc, char *argv[])
