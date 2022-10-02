@@ -1,9 +1,11 @@
 
 #include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "usyscall.h"
 #include "pool.h"
 
 static int g_retcode;
@@ -11,7 +13,8 @@ static int g_retcode;
 #define APPS_X(X) \
 	X(echo)       \
 	X(retcode)    \
-	X(pooltest)
+	X(pooltest)   \
+	X(syscalltest)
 
 #define DECLARE(X) static int X(int, char *[]);
 APPS_X(DECLARE)
@@ -27,18 +30,30 @@ static const struct app
 #undef ELEM
 };
 
+static int os_printf(const char *fmt, ...)
+{
+	char buf[128];
+	va_list ap;
+	va_start(ap, fmt);
+	int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	return os_print(buf, ret);
+}
+
 static int echo(int argc, char *argv[])
 {
 	for (int i = 1; i < argc; ++i)
 	{
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
+	fflush(stdout);
 	return argc - 1;
 }
 
 static int retcode(int argc, char *argv[])
 {
 	printf("%d\n", g_retcode);
+	fflush(stdout);
 	return 0;
 }
 
@@ -89,6 +104,12 @@ static int pooltest(int argc, char *argv[])
 	}
 }
 
+static int syscalltest(int argc, char *argv[])
+{
+	int r = os_printf("%s\n", argv[1]);
+	return r - 1;
+}
+
 int shell(int argc, char *argv[])
 {
 	char line[256];
@@ -122,9 +143,4 @@ int shell(int argc, char *argv[])
 		}
 	}
 	return 0;
-}
-
-int main(int argc, char *argv[])
-{
-	shell(0, NULL);
 }
