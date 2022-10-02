@@ -1,5 +1,11 @@
-#include <stdio.h>
+
+#include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "usyscall.h"
 #include "pool.h"
 
 #define MAX_INPUT_LENGTH 512
@@ -10,7 +16,8 @@ int RETCODE = 0;
 #define APPS_X(X) \
 	X(echo)       \
 	X(retcode)    \
-	X(pooltest)
+	X(pooltest)   \
+	X(syscalltest)
 
 #define DECLARE(X) static int X(int, char *[]);
 APPS_X(DECLARE)
@@ -26,18 +33,30 @@ static const struct app
 #undef ELEM
 };
 
-int echo(int argc, char *argv[])
+static int os_printf(const char *fmt, ...)
+{
+	char buf[128];
+	va_list ap;
+	va_start(ap, fmt);
+	int ret = vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	return os_print(buf, ret);
+}
+
+static int echo(int argc, char *argv[])
 {
 	for (int i = 1; i < argc; ++i)
 	{
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
+	fflush(stdout);
 	return argc - 1;
 }
 
-int retcode(int argc, char *argv[])
+static int retcode(int argc, char *argv[])
 {
-	printf("%d\n", RETCODE);
+	printf("%d\n", g_retcode);
+	fflush(stdout);
 	return 0;
 }
 
@@ -121,14 +140,38 @@ static int pooltest(int argc, char *argv[])
 	}
 }
 
-int main(int argc, char *argv[])
+static int syscalltest(int argc, char *argv[])
 {
-	char input[MAX_INPUT_LENGTH];
-
-	while (fgets(input, MAX_INPUT_LENGTH, stdin) != NULL)
-	{
-		execute(input);
-	}
-
-	return 0;
+	int r = os_printf("%s\n", argv[1]);
+	return r - 1;
 }
+
+int shell(int argc, char *argv[])
+{
+	char line[256];
+	while (fgets(line, sizeof(line), stdin))
+	{
+		const char *comsep = "\n;";
+		char *stcmd;
+		char *cmd = strtok_r(line, comsep, &stcmd);
+		while (cmd)
+		{
+			const char *argsep = " ";
+			char *starg;
+			char *arg = strtok_r(cmd, argsep, &starg);
+			char *argv[256];
+			int argc = 0;
+			while (arg)
+			{
+				argv[argc++] = arg;
+				arg = strtok_r(NULL, argsep, &starg);
+			}
+			argv[argc] = NULL;
+
+			while (fgets(input, MAX_INPUT_LENGTH, stdin) != NULL)
+			{
+				execute(input);
+			}
+
+			return 0;
+		}

@@ -2,24 +2,28 @@
 
 #include "util.h"
 
-struct pool {
+struct pool_free_block
+{
+	struct pool_free_block *next;
+};
+
+struct pool
+{
 	char *mem;
 	unsigned long membsz;
 	char *freestart;
 	char *freeend;
-	struct pool_free_block 
-	{
-			struct pool_free_block *next;
-	} *free;
+	struct pool_free_block *freehead;
 };
 
-#define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
-	_mem, \
-	_membsz, \
-	_mem, \
-	_mem + _nmemb * _membsz, \
-	NULL \
-}
+#define POOL_INITIALIZER(_mem, _nmemb, _membsz) \
+	{                                           \
+		_mem,                                   \
+			_membsz,                            \
+			_mem,                               \
+			_mem + _nmemb *_membsz,             \
+			NULL                                \
+	}
 
 #define POOL_INITIALIZER_ARRAY(_array) \
 	POOL_INITIALIZER(_array, ARRAY_SIZE(_array), sizeof((_array)[0]));
