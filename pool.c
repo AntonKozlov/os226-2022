@@ -9,15 +9,15 @@ void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long mem
 	p->membsz = membsz;
 	p->freestart = (char *)mem;
 	p->freeend = (char *)mem + nmemb * membsz;
-	p->free = NULL;
+	p->freehead = NULL;
 }
 
 void *pool_alloc(struct pool *p)
 {
-	struct pool_free_block *fb = p->free;
+	struct pool_free_block *fb = p->freehead;
 	if (fb)
 	{
-		p->free = fb->next;
+		p->freehead = fb->next;
 		return fb;
 	}
 	if (p->freestart < p->freeend)
@@ -32,6 +32,6 @@ void *pool_alloc(struct pool *p)
 void pool_free(struct pool *p, void *ptr)
 {
 	struct pool_free_block *free_block = ptr;
-	free_block->next = p->free;
-	p->free = ptr;
+	free_block->next = p->freehead;
+	p->freehead = ptr;
 }

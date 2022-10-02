@@ -55,7 +55,7 @@ static int echo(int argc, char *argv[])
 
 static int retcode(int argc, char *argv[])
 {
-	printf("%d\n", g_retcode);
+	printf("%d\n", RETCODE);
 	fflush(stdout);
 	return 0;
 }
@@ -148,30 +148,12 @@ static int syscalltest(int argc, char *argv[])
 
 int shell(int argc, char *argv[])
 {
-	char line[256];
-	while (fgets(line, sizeof(line), stdin))
+	char input[MAX_INPUT_LENGTH];
+
+	while (fgets(input, MAX_INPUT_LENGTH, stdin) != NULL)
 	{
-		const char *comsep = "\n;";
-		char *stcmd;
-		char *cmd = strtok_r(line, comsep, &stcmd);
-		while (cmd)
-		{
-			const char *argsep = " ";
-			char *starg;
-			char *arg = strtok_r(cmd, argsep, &starg);
-			char *argv[256];
-			int argc = 0;
-			while (arg)
-			{
-				argv[argc++] = arg;
-				arg = strtok_r(NULL, argsep, &starg);
-			}
-			argv[argc] = NULL;
+		execute(input);
+	}
 
-			while (fgets(input, MAX_INPUT_LENGTH, stdin) != NULL)
-			{
-				execute(input);
-			}
-
-			return 0;
-		}
+	return 0;
+}
