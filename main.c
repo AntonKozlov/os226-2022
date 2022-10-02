@@ -8,53 +8,52 @@
 int RETCODE = 0;
 
 #define APPS_X(X) \
-        X(echo) \
-        X(retcode) \
-        X(pooltest) \
-
+	X(echo)       \
+	X(retcode)    \
+	X(pooltest)
 
 #define DECLARE(X) static int X(int, char *[]);
 APPS_X(DECLARE)
 #undef DECLARE
 
-static const struct app 
+static const struct app
 {
-        const char *name;
-        int (*fn)(int, char *[]);
+	const char *name;
+	int (*fn)(int, char *[]);
 } app_list[] = {
-#define ELEM(X) { # X, X },
-        APPS_X(ELEM)
+#define ELEM(X) {#X, X},
+	APPS_X(ELEM)
 #undef ELEM
 };
 
-int echo(int argc, char *argv[]) 
+int echo(int argc, char *argv[])
 {
-	for (int i = 1; i < argc; ++i) 
+	for (int i = 1; i < argc; ++i)
 	{
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
 	return argc - 1;
 }
 
-int retcode(int argc, char *argv[]) 
+int retcode(int argc, char *argv[])
 {
 	printf("%d\n", RETCODE);
 	return 0;
 }
 
-void runCommand(int count, char* args[])
+void runCommand(int count, char *args[])
 {
 	const struct app *app = NULL;
-	for (int i = 0; i < ARRAY_SIZE(app_list); ++i) 
+	for (int i = 0; i < ARRAY_SIZE(app_list); ++i)
 	{
-		if (!strcmp(args[0], app_list[i].name)) 
+		if (!strcmp(args[0], app_list[i].name))
 		{
 			app = &app_list[i];
 			break;
 		}
 	}
 
-	if (!app) 
+	if (!app)
 	{
 		printf("Unknown command\n");
 		return 1;
@@ -64,15 +63,15 @@ void runCommand(int count, char* args[])
 	return RETCODE;
 }
 
-void execute(char* input)
+void execute(char *input)
 {
-	char* args_str;
-	char* arg;
+	char *args_str;
+	char *arg;
 
-	char* args_ptr;
-	char* arg_ptr;
+	char *args_ptr;
+	char *arg_ptr;
 
-	char* args[MAX_NUMBER_ARGS];
+	char *args[MAX_NUMBER_ARGS];
 
 	int counter = 0;
 
@@ -97,9 +96,9 @@ void execute(char* input)
 	}
 }
 
-static int pooltest(int argc, char *argv[]) 
+static int pooltest(int argc, char *argv[])
 {
-	struct obj 
+	struct obj
 	{
 		void *field1;
 		void *field2;
@@ -107,13 +106,13 @@ static int pooltest(int argc, char *argv[])
 	static struct obj objmem[4];
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
 
-	if (!strcmp(argv[1], "alloc")) 
+	if (!strcmp(argv[1], "alloc"))
 	{
 		struct obj *o = pool_alloc(&objpool);
 		printf("alloc %d\n", o ? (o - objmem) : -1);
 		return 0;
-	} 
-	else if (!strcmp(argv[1], "free")) 
+	}
+	else if (!strcmp(argv[1], "free"))
 	{
 		int iobj = atoi(argv[2]);
 		printf("free %d\n", iobj);
@@ -122,7 +121,7 @@ static int pooltest(int argc, char *argv[])
 	}
 }
 
-int main(int argc, char *argv[]) 
+int main(int argc, char *argv[])
 {
 	char input[MAX_INPUT_LENGTH];
 
