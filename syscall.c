@@ -5,9 +5,9 @@
 #include <unistd.h>
 
 typedef unsigned long (*sys_call_t)(
-                unsigned long arg1, unsigned long arg2,
-                unsigned long arg3, unsigned long arg4,
-                void *rest);
+	unsigned long arg1, unsigned long arg2,
+	unsigned long arg3, unsigned long arg4,
+	void* rest);
 
 #define SC_TRAMPOLINE0(ret, name) \
 	static ret sys_ ## name(void); \
@@ -22,7 +22,7 @@ typedef unsigned long (*sys_call_t)(
 #define SC_TRAMPOLINE2(ret, name, type1, name1, type2, name2) \
 	static ret sys_ ## name(type1, type2); \
 	static unsigned long sys_tr_ ## name(unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, void *rest) { \
-		return (ret) sys_ ## name(((type1)arg1,"x"), ((type2)arg2,1)); \
+		return (ret) sys_ ## name((type1)arg1, (type2)arg2); \
 	}
 #define SC_TRAMPOLINE3(ret, name, type1, name1, type2, name2, type3, name3) \
 	static ret sys_ ## name(type1, type2, type3); \
@@ -52,17 +52,17 @@ SYSCALL_X(SC_TRAMPOLINE)
 
 #define SC_TABLE_ITEM(name, ...) sys_tr_## name,
 static const sys_call_t sys_table[] = {
-        SYSCALL_X(SC_TABLE_ITEM)
+		SYSCALL_X(SC_TABLE_ITEM)
 };
 #undef SC_TABLE_ITEM
 
 unsigned long syscall_do(int sysnum,
-                unsigned long arg1, unsigned long arg2,
-                unsigned long arg3, unsigned long arg4,
-                void *rest) {
-        return sys_table[sysnum](arg1, arg2, arg3, arg4, rest);
+	unsigned long arg1, unsigned long arg2,
+	unsigned long arg3, unsigned long arg4,
+	void* rest) {
+	return sys_table[sysnum](arg1, arg2, arg3, arg4, rest);
 }
 
-static int sys_print(char *str, int len) {
+static int sys_print(char* str, int len) {
 	return write(1, str, len);
 }
