@@ -5,5 +5,7 @@
 /main
 
 # IDE and tooling
+/bin
+/.vscode
 /tags
 /.vagrant
