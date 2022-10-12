@@ -70,10 +70,29 @@ void sched_run(enum policy policy) {
 	}
 
 	if (policy == POLICY_PRIO) {
+		int max_prio = -1;
 
+		do {
+			max_prio = -1;
+			task* curr = tasks;
+			while (tasks != ((task_link*)curr)->next) {
+			max_prio = max_prio < curr->priority ? curr->priority : max_prio;
+			curr = ((task_link*)curr)->next;
+		}
+
+		curr = tasks;
+		do {
+			if (curr->time_when_can_start <= time && curr->priority == max_prio) {
+				curr->entrypoint(curr->ctx);
+			}
+
+			curr = ((task_link*)curr)->next;
+			} while (tasks != ((task_link*)curr)->next);
+
+		} while (max_prio != -1);
 	}
 
 	if (policy == POLICY_DEADLINE) {
-		
+
 	}
 }
