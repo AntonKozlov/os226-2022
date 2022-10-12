@@ -40,6 +40,9 @@ void sched_cont(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int timeout) {
 
+		sched_new(entrypoint, aspace, 0, -1);
+		((task_link*)tasks)->prev->time_when_can_start = time + timeout;
+
 }
 
 void sched_time_elapsed(unsigned amount) {
