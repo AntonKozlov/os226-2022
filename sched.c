@@ -58,7 +58,7 @@ void sched_run(enum policy policy) {
 	if (policy == POLICY_FIFO) {
 			do {
 				if (tasks->time_when_can_start <= time) {
-					tasks->entrypoint(curr->ctx);
+					tasks->entrypoint(tasks->ctx);
 					task* prev = ((task_link*)tasks)->prev;
 					task* next = ((task_link*)tasks)->next;
 					((task_link*)prev)->next = next;
