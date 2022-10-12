@@ -1,11 +1,13 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "sched.h"
 #include "pool.h"
 
-static int time;
+static int time = 0;
+task* tasks = NULL;
 
 void sched_new(void (*entrypoint)(void *aspace),
 		void *aspace,
