@@ -31,3 +31,17 @@ extern void sched_time_elapsed(unsigned amount);
 // Scheduler loop, start executing tasks until all of them finish
 extern void sched_run(enum policy policy);
 
+struct task{
+	struct task_link {
+		struct task* next;
+		struct task* prev;
+	} task_link;
+
+	void (*entrypoint)(void* ctx);
+	void* ctx;
+	int priority;
+	int deadline;
+	int time_when_can_start;
+};
+typedef struct task task;
+typedef struct task_link task_link;
