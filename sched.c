@@ -7,7 +7,8 @@
 #include "pool.h"
 
 static int time = 0;
-task* tasks = NULL;
+task* head = NULL;
+task* current = NULL;
 
 void sched_new(void (*entrypoint)(void *aspace),
 		void *aspace,
