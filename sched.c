@@ -120,13 +120,13 @@ void sched_new(void (*entrypoint)(void *aspace),
 			new->time_when_can_start = -1;
 			task* last = last_task();
 			last->next = new;
-			}
+		}
 }
 
 void sched_cont(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int timeout) {
-s			ched_new(entrypoint, aspace, current->priority, current->deadline);
+			ched_new(entrypoint, aspace, current->priority, current->deadline);
 			task* last = last_task();
 			last->time_when_can_start = time + timeout;
 
