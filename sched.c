@@ -126,7 +126,7 @@ void sched_new(void (*entrypoint)(void *aspace),
 void sched_cont(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int timeout) {
-			ched_new(entrypoint, aspace, current->priority, current->deadline);
+			sched_new(entrypoint, aspace, current->priority, current->deadline);
 			task* last = last_task();
 			last->time_when_can_start = time + timeout;
 
@@ -138,7 +138,7 @@ void sched_time_elapsed(unsigned amount) {
 }
 
 void sched_run(enum policy policy) {
-	if (!tasks) {
+	if (!task) {
 		return;
 	}
 	
