@@ -101,34 +101,34 @@ void sched_new(void (*entrypoint)(void *aspace),
 		int priority,
 		int deadline) {
 
-		if (!tasks) {
-			tasks = (task*)malloc(sizeof(task));
-			tasks->task_link.next = tasks;
-			tasks->task_link.prev = tasks;
-			tasks->entrypoint = NULL;
-			tasks->ctx = NULL;
-			tasks->priority = 0;
-			tasks->deadline = 0;
-			tasks->time_when_can_start = -1;
+		if (!head) {
+			head = (task*)malloc(sizeof(task));
+			head->next = NULL;
+			head->entrypoint = entrypoint;
+			head->ctx = aspace;
+			head->priority = priority;
+			head->deadline = deadline;
+			head->time_when_can_start = -1;
 		}
-
-		task* last = ((task_link*)tasks)->prev;
-		task* new = (task*)malloc(sizeof(task));
-		((task_link*)new)->next = tasks;
-		((task_link*)new)->prev = last;
-		new->entrypoint = entrypoint;
-		new->ctx = aspace;
-		new->priority = priority;
-		new->deadline = deadline;
-		new->time_when_can_start = -1;
+		else {
+			task* new = (task*)malloc(sizeof(task));
+			new->next = NULL;
+			new->entrypoint = entrypoint;
+			new->ctx = aspace;
+			new->priority = priority;
+			new->deadline = deadline;
+			new->time_when_can_start = -1;
+			task* last = last_task();
+			last->next = new;
+			}
 }
 
 void sched_cont(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int timeout) {
-
-		sched_new(entrypoint, aspace, 0, -1);
-		((task_link*)tasks)->prev->time_when_can_start = time + timeout;
+s			ched_new(entrypoint, aspace, current->priority, current->deadline);
+			task* last = last_task();
+			last->time_when_can_start = time + timeout;
 
 }
 
