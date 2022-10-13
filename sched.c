@@ -138,7 +138,7 @@ void sched_time_elapsed(unsigned amount) {
 }
 
 void sched_run(enum policy policy) {
-	if (!task) {
+	if (!head) {
 		return;
 	}
 	
