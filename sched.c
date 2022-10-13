@@ -10,6 +10,92 @@ static int time = 0;
 task* head = NULL;
 task* current = NULL;
 
+task* last_task() {
+	if (!head) {
+		return NULL;
+	}
+
+	task* curr = head;
+	while (curr->next) {
+		curr = curr->next;
+	}
+
+	return curr;
+}
+
+void del_task(task* target) {
+	task* curr = head;
+	if (!curr) {
+		return;
+	}
+
+	if (curr == target) {
+		head = curr->next;
+		free(curr);
+		return;
+	}
+
+	task* prev = NULL;
+
+	while (curr != target && curr->next) {
+		prev = curr;
+		curr = curr->next;
+	}
+
+	if (curr == target) {
+		prev->next = curr->next;
+		free(curr);
+	}
+	
+}
+
+task* max_prio_task() {
+	if (!head) {
+		return NULL;
+	}
+
+	int max_p = -1;
+	task* curr = head;
+	task* rez;
+
+	while (curr) {
+		if (max_p < curr->priority && curr->time_when_can_start <= time) {
+			max_p = curr->priority;
+			rez = curr;
+		}
+		curr = curr->next;
+	}
+
+	return rez;
+}
+
+task* min_deadline_task() {
+	if (!head) {
+		return NULL;
+	}
+
+	int min_dl = INT_MAX;
+	task* curr = head;
+	task* rez = NULL;
+
+	while(curr) {
+		if (curr->deadline > -1 && min_dl >= curr->deadline && curr->time_when_can_start <= time) {
+			if (!rez || curr->priority > rez->priority) {
+				min_dl = curr->deadline;
+				rez = curr;
+			}
+		}
+		
+		curr = curr->next;
+	}
+
+	if (!rez) {
+		rez = max_prio_task();
+	}
+
+	return rez;
+}
+
 void sched_new(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int priority,
