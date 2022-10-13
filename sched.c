@@ -171,6 +171,11 @@ void sched_run(enum policy policy) {
 	}
 
 	if (policy == POLICY_DEADLINE) {
-
+		current = min_deadline_task();
+		while (current) {
+			current->entrypoint(current->ctx);
+			del_task(current);
+			current = min_deadline_task();
+		}
 	}
 }
