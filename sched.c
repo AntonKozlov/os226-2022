@@ -141,19 +141,24 @@ void sched_run(enum policy policy) {
 	if (!tasks) {
 		return;
 	}
-
-	if (policy == POLICY_FIFO) {
-			do {
-				if (tasks->time_when_can_start <= time) {
-					tasks->entrypoint(tasks->ctx);
-					task* prev = ((task_link*)tasks)->prev;
-					task* next = ((task_link*)tasks)->next;
-					((task_link*)prev)->next = next;
-					((task_link*)next)->prev = prev;
+	
+	current = head;
+	
+	if (policy == POLICY_FIFO) 
+		{while (head) {
+			current = head;
+			while (current) {
+				if (current->time_when_can_start <= time) {
+					current->entrypoint(current->ctx);
+					task* to_del = current;
+					current = current->next;
+					del_task(to_del);
 				}
-
-				tasks = ((task_link*)tasks)->next;
-			} while (tasks != ((task_link*)tasks)->prev);
+				else {
+					current = current->next;
+				}
+			}
+		}
 	}
 
 	if (policy == POLICY_PRIO) {
