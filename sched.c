@@ -10,7 +10,6 @@ static int time = 0;
 struct task
 {
 	void (*entrypoint)(void *);
-
 	void *aspace;
 	int priority;
 	int deadline;
@@ -94,20 +93,12 @@ void sched_time_elapsed(unsigned amount)
 
 void sched_run(enum policy policy)
 {
-	switch (policy)
-	{
-	case POLICY_FIFO:
+	if (policy == POLICY_FIFO)
 		exec_task(policy_fifo);
-		break;
-	case POLICY_PRIO:
+	else if (policy == POLICY_PRIO)
 		exec_task(policy_prio);
-		break;
-	case POLICY_DEADLINE:
-		exec_task(policy_prio);
-		break;
-	default:
+	else if (policy == POLICY_DEADLINE)
 		exec_task(policy_deadline);
-	}
 }
 
 void exec_task(struct task *(*policy)(struct task *, struct task *))
