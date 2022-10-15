@@ -10,7 +10,7 @@ pub struct PoolTest {
 impl PoolTest {
     pub fn new() -> Self {
         PoolTest {
-            pool: MemPoolAllocator::new(4)
+            pool: MemPoolAllocator::new(4),
         }
     }
 }
@@ -30,7 +30,7 @@ impl Command for PoolTest {
                 unsafe { self.pool.free(chunk); }
                 os_msg!("free {}", chunk_index)
             }
-            _ => os_err!("Unknown command {}", args.join(" "))
+            _ => os_err!("Unknown command {}", args.join(" ")),
         }
     }
 }

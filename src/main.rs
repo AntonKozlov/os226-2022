@@ -1,5 +1,3 @@
-extern crate core;
-
 use std::collections::HashMap;
 use std::io;
 use std::process::exit;
@@ -19,8 +17,8 @@ fn main() {
     if unsafe { install_signal_handler() } == 0 {
         let commands_list: [(&str, Box<dyn Command>); 4] = [
             ("echo", Box::new(Echo)),
-            ("retcode", Box::new(RetCode)),
             ("pooltest", Box::new(PoolTest::new())),
+            ("retcode", Box::new(RetCode)),
             ("syscalltest", Box::new(SysCallTest)),
         ];
         run_shell(HashMap::from(commands_list));
@@ -46,7 +44,7 @@ fn run_shell(mut commands: HashMap<&str, Box<dyn Command>>) {
 
             ret_code = match commands.get_mut(cmd_name) {
                 Some(cmd) => cmd.run(cmd_args, ret_code),
-                None => os_err!("Unknown command {}", cmd_name)
+                None => os_err!("Unknown command {}", cmd_name),
             };
         }
     }
