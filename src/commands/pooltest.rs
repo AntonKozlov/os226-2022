@@ -19,16 +19,15 @@ impl Command for PoolTest {
     fn run(&mut self, args: Vec<&str>, _curr_ret_code: u8) -> u8 {
         match args.as_slice() {
             [_, "alloc"] => {
-                let chunk_index = self.pool.alloc()
-                    .map(|chunk| chunk as *const u8)
-                    .map(|chunk_ptr| unsafe { self.pool.get_chunk_index(chunk_ptr) })
-                    .map(|chunk_index| chunk_index as i32);
+                let chunk_index = self.pool.alloc().map(|chunk| unsafe {
+                    self.pool.get_chunk_position(&chunk).unwrap() as i32
+                });
                 os_msg!("alloc {}", chunk_index.unwrap_or(-1))
             }
             [_, "free", chunk_index_str] => {
                 let chunk_index: usize = chunk_index_str.parse().unwrap();
-                let chunk_ptr: *const u8 = &self.pool.get_buf()[chunk_index];
-                unsafe { self.pool.free(chunk_ptr); }
+                let chunk = &self.pool.get_buf()[chunk_index].clone();
+                unsafe { self.pool.free(chunk); }
                 os_msg!("free {}", chunk_index)
             }
             _ => os_err!("Unknown command {}", args.join(" "))
