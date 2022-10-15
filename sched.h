@@ -14,6 +14,16 @@ enum policy {
 	POLICY_DEADLINE,
 };
 
+struct task{
+    struct task *next;
+    struct task *prev;
+	void (*entrypoint)(void *ctx);
+	void *ctx;
+	int priority;
+	int deadline;
+	int timeout_till;
+};
+typedef struct task task;
 // Add new task
 extern void sched_new(void (*entrypoint)(void *ctx), // entrypoint function
 		void *ctx,     // context of the process
