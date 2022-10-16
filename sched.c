@@ -104,6 +104,10 @@ void sched_cont(void (*entrypoint)(void *aspace),
 				void *aspace,
 				int timeout)
 {
+	if (cur_task == NULL)
+		return;
+	struct sched_task task = {entrypoint, aspace, cur_task->priority, cur_task->deadline, time + timeout};
+	add_task(task);
 }
 
 void sched_time_elapsed(unsigned amount)
@@ -113,10 +117,19 @@ void sched_time_elapsed(unsigned amount)
 
 void sched_run(enum policy policy)
 {
-	if (policy == POLICY_FIFO)
+	switch (policy)
+	{
+	case POLICY_FIFO:
 		run_tasks(&is_preferable_by_fifo);
-	else if (policy == POLICY_PRIO)
+		break;
+	case POLICY_PRIO:
 		run_tasks(&is_preferable_by_prio);
-	else if (policy == POLICY_DEADLINE)
+		break;
+	case POLICY_DEADLINE:
 		run_tasks(&is_preferable_by_deadline);
+		break;
+	default:
+		fprintf(stderr, "Unknown policy provided\n");
+		break;
+	}
 }
