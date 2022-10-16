@@ -51,18 +51,18 @@ SYSCALL_X(SC_TRAMPOLINE)
 #undef SC_TRAMPOLINE
 
 #define SC_TABLE_ITEM(name, ...) sys_tr_## name,
-static const sys_call_t sys_table[] = { SYSCALL_X(SC_TABLE_ITEM) };
+static const sys_call_t sys_table[] = {
+        SYSCALL_X(SC_TABLE_ITEM)
+};
 #undef SC_TABLE_ITEM
 
 unsigned long syscall_do(int sysnum,
                 unsigned long arg1, unsigned long arg2,
                 unsigned long arg3, unsigned long arg4,
-                void *rest) 
-{
+                void *rest) {
         return sys_table[sysnum](arg1, arg2, arg3, arg4, rest);
 }
 
-static int sys_print(char *str, int len) 
-{
+static int sys_print(char *str, int len) {
 	return write(1, str, len);
 }

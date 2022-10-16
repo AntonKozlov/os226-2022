@@ -3,8 +3,7 @@
 
 #include "pool.h"
 
-void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long membsz) 
-{
+void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long membsz) {
 	p->mem = mem;
 	p->membsz = membsz;
 	p->freestart = mem;
@@ -12,18 +11,15 @@ void pool_init(struct pool *p, void *mem, unsigned long nmemb, unsigned long mem
 	p->freehead = NULL;
 }
 
-void *pool_alloc(struct pool *p) 
-{
-	if (p->freestart < p->freeend) 
-	{
+void *pool_alloc(struct pool *p) {
+	if (p->freestart < p->freeend) {
 		void *r = p->freestart;
 		p->freestart += p->membsz;
 		return r;
 	}
 
 	struct pool_free_block *fb = p->freehead;
-	if (fb) 
-	{
+	if (fb) {
 		p->freehead = fb->next;
 		return fb;
 	}
@@ -31,8 +27,7 @@ void *pool_alloc(struct pool *p)
 	return NULL;
 }
 
-void pool_free(struct pool *p, void *ptr) 
-{
+void pool_free(struct pool *p, void *ptr) {
 	struct pool_free_block *fb = ptr;
 	fb->next = p->freehead;
 	p->freehead = fb;

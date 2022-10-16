@@ -2,13 +2,11 @@
 
 #include "util.h"
 
-struct pool_free_block 
-{
+struct pool_free_block {
 	struct pool_free_block *next;
 };
 
-struct pool 
-{
+struct pool {
 	char *mem;
 	unsigned long membsz;
 	char *freestart;
@@ -16,12 +14,11 @@ struct pool
 	struct pool_free_block *freehead;
 };
 
-#define POOL_INITIALIZER(_mem, _nmemb, _membsz)		 \
-{													 \
-	.mem = (char*)(_mem),							 \
-	.membsz	= (_membsz),							 \
-	.freehead = NULL,								 \
-	.freestart = (char*)(_mem),						 \
+#define POOL_INITIALIZER(_mem, _nmemb, _membsz) { \
+	.mem = (char*)(_mem), \
+	.membsz	= (_membsz), \
+	.freehead = NULL, \
+	.freestart = (char*)(_mem), \
 	.freeend = (char*)(_mem) + (_nmemb) * (_membsz), \
 }
 
