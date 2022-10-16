@@ -113,19 +113,10 @@ void sched_time_elapsed(unsigned amount)
 
 void sched_run(enum policy policy)
 {
-	switch (policy)
-	{
-	case POLICY_FIFO:
+	if (policy == POLICY_FIFO)
 		run_tasks(&is_preferable_by_fifo);
-		break;
-	case POLICY_PRIO:
+	else if (policy == POLICY_PRIO)
 		run_tasks(&is_preferable_by_prio);
-		break;
-	case POLICY_DEADLINE:
+	else if (policy == POLICY_DEADLINE)
 		run_tasks(&is_preferable_by_deadline);
-		break;
-	default:
-		fprintf(stderr, "Unknown policy provided\n");
-		break;
-	}
 }
