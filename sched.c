@@ -4,7 +4,6 @@
 #include <malloc.h>
 
 #include "sched.h"
-#include "pool.h"
 
 struct sched_task
 {
