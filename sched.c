@@ -7,7 +7,7 @@
 #include "sched.h"
 #include "pool.h"
 
-static int time;
+static int time = 0;
 static task* head_task = NULL;
 static task* curr_task = NULL;
 static task* tail_task = NULL;
