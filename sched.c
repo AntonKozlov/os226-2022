@@ -93,12 +93,6 @@ void sched_run(enum policy policy) {
         task_t *chosen = task_list.first;
         task_t *next = chosen->next;
 
-        task_t *test = task_list.first;
-        while (test != NULL) {
-            test = test->next;
-        }
-
-
         while (next != NULL) {
             if (chosen->created_at + chosen->timeout > time)
                 chosen = next;
