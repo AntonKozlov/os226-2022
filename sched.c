@@ -141,6 +141,8 @@ struct task* get_min_deadline_task()
 	{
 		return get_max_prio_task();
 	}
+
+	return curr_task;
 }
 
 void run_fifo_policy()
