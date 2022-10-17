@@ -83,7 +83,7 @@ void exec_fifo() {
 	if (!head_task) return;
 
 	curr_task = head_task;
-	while (head_task) {
+	while (curr_task) {
 		if (curr_task->time > time) {
 			curr_task = curr_task->next;
 			continue;
