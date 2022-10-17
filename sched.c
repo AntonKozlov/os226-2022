@@ -118,6 +118,7 @@ void exec_deadline() {
 	}
 }
 
+
 void sched_new(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int priority,
@@ -149,8 +150,10 @@ void sched_new(void (*entrypoint)(void *aspace),
 void sched_cont(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int timeout) {
+
 	sched_new(entrypoint, aspace, curr_task->priority, curr_task->deadline);
 	tail_task->time = time + timeout;
+
 }
 
 void sched_time_elapsed(unsigned amount) {
@@ -159,6 +162,7 @@ void sched_time_elapsed(unsigned amount) {
 }
 
 void sched_run(enum policy policy) {
+
 	if (policy == POLICY_DEADLINE) {
 		exec_deadline();
 	} else if (policy == POLICY_FIFO) {
@@ -166,4 +170,5 @@ void sched_run(enum policy policy) {
 	} else if (policy == POLICY_PRIO){
 		exec_prio();
 	}
+
 }
