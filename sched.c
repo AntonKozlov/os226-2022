@@ -1,4 +1,4 @@
-// Understand the task and get the concept idea of it from Tozarin`s homework because I am sicking right now
+// Understand the task and get the concept idea of it from Tozarin`s homework because I am sick right now
 // And missed last class.
 // I will promise to do next homework only by my own efforts.
 
