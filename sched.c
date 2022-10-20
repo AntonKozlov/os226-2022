@@ -130,11 +130,11 @@ static int deadline_cmp(struct task *t1, struct task *t2) {
 }
 
 static void tick_hnd(void) {
-	// TODO
+	time += 1;
 }
 
 long sched_gettime(void) {
-	// TODO: timer_cnt
+	return time + timer_cnt() / 1000;
 }
 
 void sched_run(enum policy policy) {
