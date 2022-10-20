@@ -36,12 +36,17 @@ static struct task taskarray[16];
 static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 
 void irq_disable(void) {
-        // TODO: sigprocmask
+        sigset_t ss;
+		sigemptyset(&ss);
+		sigaddset(&ss, SIGALRM);
+		sigprocmask(SIG_BLOCK, &ss, NULL);			
 }
 
 void irq_enable(void) {
-        // TODO: sigprocmask
-}
+        sigset_t ss;
+		sigemptyset(&ss);
+		sigaddset(&ss, SIGALRM);
+		sigprocmask(SIG_UNBLOCK, &ss, NULL);
 
 static void policy_run(struct task *t) {
 	struct task **c = &runq;
