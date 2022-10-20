@@ -109,13 +109,16 @@ out:
 }
 
 void sched_time_elapsed(unsigned amount) {
-	// TODO
-#if 0
-	int endtime = time + amount; 
+	irq_disable();
+
+	int endtime = time + amount;
 	while (time < endtime) {
+		irq_enable();
 		pause();
+		irq_disable();
 	}
-#endif
+
+	irq_enable();
 }
 
 static int fifo_cmp(struct task *t1, struct task *t2) {
