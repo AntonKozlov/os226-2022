@@ -47,6 +47,7 @@ void irq_enable(void) {
 		sigemptyset(&ss);
 		sigaddset(&ss, SIGALRM);
 		sigprocmask(SIG_UNBLOCK, &ss, NULL);
+}
 
 static void policy_run(struct task *t) {
 	struct task **c = &runq;
