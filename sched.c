@@ -140,6 +140,12 @@ static int deadline_cmp(struct task *t1, struct task *t2) {
 
 static void tick_hnd(void) {
 	time += 1;
+
+	while (waitq && waitq->waketime <= time) {
+		struct task *t = waitq;
+		waitq = waitq->next;
+		policy_run(t);
+	}
 }
 
 long sched_gettime(void) {
