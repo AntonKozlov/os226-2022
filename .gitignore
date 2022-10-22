@@ -7,3 +7,6 @@
 # IDE and tooling
 /tags
 /.vagrant
+.vscode/tasks.json
+.vscode/launch.json
+*.json
