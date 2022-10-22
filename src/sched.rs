@@ -10,8 +10,8 @@ use crate::mem_pool::MemPoolAllocator;
 pub struct Sched {
     time: u32,
     task_cmp: Option<TaskComparator>,
-    curr_task: Option<Rc<RefCell<Task>>>,
-    running_tasks: VecDeque<Rc<RefCell<Task>>>,
+    running_task: Option<Rc<RefCell<Task>>>,
+    ready_tasks: VecDeque<Rc<RefCell<Task>>>,
     suspended_tasks: VecDeque<(Rc<RefCell<Task>>, u32)>,
     allocator: MemPoolAllocator<Task>,
 }
@@ -52,8 +52,8 @@ impl Sched {
         Sched {
             time: 0,
             task_cmp: None,
-            curr_task: None,
-            running_tasks: VecDeque::new(),
+            running_task: None,
+            ready_tasks: VecDeque::new(),
             suspended_tasks: VecDeque::new(),
             allocator: MemPoolAllocator::new(16),
         }
@@ -76,20 +76,18 @@ impl Sched {
         };
         self.task_cmp = Some(task_cmp);
 
-        self.running_tasks.make_contiguous().sort_by(|a, b| {
+        self.ready_tasks.make_contiguous().sort_by(|a, b| {
             let a = &*a.deref().borrow();
             let b = &*b.deref().borrow();
             task_cmp(a, b).then(a.id.cmp(&b.id))
         });
 
-        while let Some(task) = self.running_tasks.pop_front() {
-            self.curr_task = Some(task.clone());
+        while let Some(task) = self.ready_tasks.pop_front() {
+            self.running_task = Some(task.clone());
 
             let task = task.deref().borrow();
             let entrypoint = task.entrypoint.unwrap();
-            let id = task.id;
-            let ctx = task.ctx.clone().unwrap();
-
+            let (id, ctx) = (task.id, task.ctx.clone().unwrap());
             drop(task);
 
             entrypoint(self, id, ctx);
@@ -108,33 +106,32 @@ impl Sched {
         let task = self.allocator.alloc().unwrap();
 
         let mut task_ref = task.deref().borrow_mut();
-        task_ref.id = self.running_tasks.len() + 1;
+        task_ref.id = self.ready_tasks.len() + 1;
         task_ref.priority = priority;
         task_ref.deadline = deadline;
         task_ref.entrypoint = Some(entrypoint);
         task_ref.ctx = Some(ctx);
 
-        self.running_tasks.push_back(task.clone());
+        self.ready_tasks.push_back(task.clone());
     }
 
-
     /// Continue process from function after some amount of time.
-    pub fn cont(&mut self, timeout: u32) {
-        let curr = self.curr_task.clone().unwrap();
+    pub fn suspend_running_task(&mut self, timeout: u32) {
+        let curr = self.running_task.clone().unwrap();
         if timeout == 0 {
-            self.push_to_queue(curr);
+            self.push_to_ready(curr);
         } else {
-            self.suspend(curr, self.time + timeout);
+            self.push_to_suspended(curr, self.time + timeout);
         }
     }
 
     /// Notify scheduler that some amount of time passed.
-    pub fn time_elapsed(&mut self, amount: u32) {
+    pub fn notify_about_time_elapsed(&mut self, amount: u32) {
         self.time += amount;
         while let Some((_, waketime)) = self.suspended_tasks.front() {
             if *waketime <= self.time {
                 let (task, _) = self.suspended_tasks.pop_front().unwrap();
-                self.push_to_queue(task);
+                self.push_to_ready(task);
             } else {
                 break;
             }
@@ -144,17 +141,17 @@ impl Sched {
 
     // Utils
 
-    fn push_to_queue(&mut self, task: Rc<RefCell<Task>>) {
+    fn push_to_ready(&mut self, task: Rc<RefCell<Task>>) {
         let cmp = self.task_cmp.unwrap();
-        let index = self.running_tasks.iter().position(|t| {
+        let index = self.ready_tasks.iter().position(|t| {
             cmp(&*t.deref().borrow(), &*task.deref().borrow()).is_gt()
-        }).unwrap_or(self.running_tasks.len());
-        self.running_tasks.insert(index, task);
+        }).unwrap_or(self.ready_tasks.len());
+        self.ready_tasks.insert(index, task);
     }
 
-    fn suspend(&mut self, task: Rc<RefCell<Task>>, awakening_time: u32) {
+    fn push_to_suspended(&mut self, task: Rc<RefCell<Task>>, awakening_time: u32) {
         let index = self.suspended_tasks.iter().position(|(_, at)| {
-            at.cmp(&awakening_time).is_gt()
+            *at < awakening_time
         }).unwrap_or(self.suspended_tasks.len());
         self.suspended_tasks.insert(index, (task, awakening_time));
     }

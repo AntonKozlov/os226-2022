@@ -41,7 +41,7 @@ impl CoApp {
         println!("{:>16} id {} cnt {}", "coapp_task", id, co_app_ctx.cnt);
 
         if co_app_ctx.cnt > 0 {
-            sched.cont(2);
+            sched.suspend_running_task(2);
         }
 
         co_app_ctx.cnt -= 1;
@@ -53,10 +53,10 @@ impl CoApp {
 
         println!("{:>16} id {} cnt {}", "coapp_rt", id, co_app_ctx.cnt);
 
-        sched.time_elapsed(1);
+        sched.notify_about_time_elapsed(1);
 
         if co_app_ctx.cnt > 0 {
-            sched.cont(0);
+            sched.suspend_running_task(0);
         }
 
         co_app_ctx.cnt -= 1;
@@ -71,9 +71,8 @@ impl Command for CoApp {
         };
         let ctx = {
             let ctx = self.allocator.alloc().unwrap();
-            let mut ctx_ref = ctx.deref().borrow_mut();
-            ctx_ref.cnt = args[2].parse().unwrap();
-            ctx.clone()
+            ctx.deref().borrow_mut().cnt = args[2].parse().unwrap();
+            ctx
         };
         let priority: u32 = args[3].parse().unwrap();
         let deadline: u32 = args[4].parse::<i32>().unwrap() as u32;
