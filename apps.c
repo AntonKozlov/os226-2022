@@ -1,23 +1,30 @@
-
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 
+#include <time.h>
+#include <sys/time.h>
+
+#include <time.h>
+#include <sys/time.h>
+
+#include "sched.h"
 #include "usyscall.h"
 #include "pool.h"
 
-#define MAX_INPUT_LENGTH 512
-#define MAX_NUMBER_ARGS 64
+static int g_retcode;
 
-int RETCODE = 0;
-
-#define APPS_X(X) \
-	X(echo)       \
-	X(retcode)    \
-	X(pooltest)   \
-	X(syscalltest)
+#define APPS_X(X)  \
+	X(echo)        \
+	X(retcode)     \
+	X(pooltest)    \
+	X(syscalltest) \
+	X(coapp)       \
+	X(cosched)     \
+	X(irqtest)
 
 #define DECLARE(X) static int X(int, char *[]);
 APPS_X(DECLARE)
@@ -32,6 +39,13 @@ static const struct app
 	APPS_X(ELEM)
 #undef ELEM
 };
+
+static long reftime(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 
 static int os_printf(const char *fmt, ...)
 {
@@ -55,17 +69,92 @@ static int echo(int argc, char *argv[])
 
 static int retcode(int argc, char *argv[])
 {
-	printf("%d\n", RETCODE);
+	printf("%d\n", g_retcode);
 	fflush(stdout);
 	return 0;
 }
 
-void runCommand(int count, char *args[])
+struct coapp_ctx
+{
+	int cnt;
+} ctxarray[16];
+struct pool ctxpool = POOL_INITIALIZER_ARRAY(ctxarray);
+
+static void coapp_task(void *_ctx)
+{
+	struct coapp_ctx *ctx = _ctx;
+
+	printf("%16s id %d cnt %d\n", __func__, 1 + ctx - ctxarray, ctx->cnt);
+
+	if (0 < ctx->cnt)
+	{
+		sched_cont(coapp_task, ctx, 2);
+	}
+
+	--ctx->cnt;
+}
+
+static void coapp_rt(void *_ctx)
+{
+	struct coapp_ctx *ctx = _ctx;
+
+	printf("%16s id %d cnt %d\n", __func__, 1 + ctx - ctxarray, ctx->cnt);
+
+	sched_time_elapsed(1);
+
+	if (0 < ctx->cnt)
+	{
+		sched_cont(coapp_rt, ctx, 0);
+	}
+
+	--ctx->cnt;
+}
+
+static void coapp_sleep(void *_ctx)
+{
+	struct coapp_ctx *ctx = _ctx;
+
+	static long refstart;
+	if (!refstart)
+	{
+		refstart = reftime();
+	}
+
+	sched_time_elapsed(10);
+
+	printf("%16s id %d cnt %d time %ld reftime %ld\n",
+		   __func__, 1 + ctx - ctxarray, ctx->cnt, sched_gettime(), reftime() - refstart);
+
+	if (0 < ctx->cnt)
+	{
+		sched_cont(coapp_sleep, ctx, 1000);
+	}
+
+	--ctx->cnt;
+}
+
+static int coapp(int argc, char *argv[])
+{
+	int entry_id = atoi(argv[1]) - 1;
+
+	struct coapp_ctx *ctx = pool_alloc(&ctxpool);
+	ctx->cnt = atoi(argv[2]);
+
+	void (*entries[])(void *) = {coapp_task, coapp_rt, coapp_sleep};
+	sched_new(entries[entry_id], ctx, atoi(argv[3]), atoi(argv[4]));
+}
+
+static int cosched(int argc, char *argv[])
+{
+	sched_run(atoi(argv[1]));
+}
+
+static int exec(int argc, char *argv[])
 {
 	const struct app *app = NULL;
 	for (int i = 0; i < ARRAY_SIZE(app_list); ++i)
 	{
-		if (!strcmp(args[0], app_list[i].name))
+		if (!strcmp(argv[0], app_list[i].name))
 		{
 			app = &app_list[i];
 			break;
@@ -78,41 +167,8 @@ void runCommand(int count, char *args[])
 		return 1;
 	}
 
-	RETCODE = app->fn(count, args);
-	return RETCODE;
-}
-
-void execute(char *input)
-{
-	char *args_str;
-	char *arg;
-
-	char *args_ptr;
-	char *arg_ptr;
-
-	char *args[MAX_NUMBER_ARGS];
-
-	int counter = 0;
-
-	args_str = strtok_r(input, ";\n", &args_ptr);
-
-	while (args_str)
-	{
-		arg = strtok_r(args_str, " \n", &arg_ptr);
-
-		while (arg != NULL)
-		{
-			args[counter] = arg;
-			arg = strtok_r(NULL, " \n", &arg_ptr);
-
-			counter++;
-		}
-
-		runCommand(counter, args);
-
-		counter = 0;
-		args_str = strtok_r(NULL, ";\n", &args_ptr);
-	}
+	g_retcode = app->fn(argc, argv);
+	return g_retcode;
 }
 
 static int pooltest(int argc, char *argv[])
@@ -146,14 +202,65 @@ static int syscalltest(int argc, char *argv[])
 	return r - 1;
 }
 
-int shell(int argc, char *argv[])
+static int irqtest(int argc, char *argv[])
 {
-	char input[MAX_INPUT_LENGTH];
+	sched_run(0);
 
-	while (fgets(input, MAX_INPUT_LENGTH, stdin) != NULL)
+	static long refstart;
+	if (!refstart)
 	{
-		execute(input);
+		refstart = reftime();
 	}
 
+	sched_time_elapsed(10);
+
+	printf("%16s time %ld reftime %ld\n",
+		   __func__, sched_gettime(), reftime() - refstart);
+
+	irq_disable();
+	while (reftime() < refstart + 1000)
+	{
+		// nop
+	}
+	irq_enable();
+
+	printf("%16s time %ld reftime %ld\n",
+		   __func__, sched_gettime(), reftime() - refstart);
+
+	return 0;
+}
+
+int shell(int argc, char *argv[])
+{
+	char line[256];
+	while (fgets(line, sizeof(line), stdin))
+	{
+		const char *comsep = "\n;";
+		char *stcmd;
+		char *cmd = strtok_r(line, comsep, &stcmd);
+		while (cmd)
+		{
+			const char *argsep = " \t";
+			char *starg;
+			char *arg = strtok_r(cmd, argsep, &starg);
+			char *argv[256];
+			int argc = 0;
+			while (arg && arg[0] != '#')
+			{
+				argv[argc++] = arg;
+				arg = strtok_r(NULL, argsep, &starg);
+			}
+			argv[argc] = NULL;
+
+			if (!argc)
+			{
+				break;
+			}
+
+			exec(argc, argv);
+
+			cmd = strtok_r(NULL, comsep, &stcmd);
+		}
+	}
 	return 0;
 }
