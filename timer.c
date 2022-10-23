@@ -18,9 +18,13 @@ int timer_cnt(void) {
 }
 
 void timer_init(int ms, void (*hnd)(void)) {
+	struct timeval interval;
+	interval.tv_sec = ms / 1000;
+	interval.tv_usec = ms * 1000;
+
 	struct itimerval timer;
-	timer.it_interval = {ms / 1000; ms * 1000};
-	timer.it_value = {ms / 1000; ms * 1000};
+	timer.it_interval = interval;
+	timer.it_value = interval;
 
 	setitimer(ITIMER_REAL, &timer, NULL);
 	signal(SIGALRM, (__sighandler_t)hnd);
