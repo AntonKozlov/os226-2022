@@ -139,6 +139,7 @@ static void tick_hnd(void) {
 		struct task *t = waitq;
 		waitq = waitq->next;
 		policy_run(t);
+	}
 }
 
 long sched_gettime(void) {
