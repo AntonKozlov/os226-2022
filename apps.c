@@ -19,12 +19,6 @@
 static int g_retcode;
 
 #define APPS_X(X) \
-<<<<<<< HEAD
-	X(echo)       \
-	X(retcode)    \
-	X(pooltest)   \
-	X(syscalltest)
-=======
         X(echo) \
         X(retcode) \
         X(pooltest) \
@@ -32,14 +26,12 @@ static int g_retcode;
         X(coapp) \
         X(cosched) \
         X(irqtest) \
->>>>>>> upstream/master
 
 #define DECLARE(X) static int X(int, char *[]);
 APPS_X(DECLARE)
 #undef DECLARE
 
-static const struct app
-{
+static const struct app {
 	const char *name;
 	int (*fn)(int, char *[]);
 } app_list[] = {
@@ -48,10 +40,6 @@ static const struct app
 #undef ELEM
 };
 
-<<<<<<< HEAD
-static int os_printf(const char *fmt, ...)
-{
-=======
 static long reftime(void) {
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -59,7 +47,6 @@ static long reftime(void) {
 }
 
 static int os_printf(const char *fmt, ...) {
->>>>>>> upstream/master
 	char buf[128];
 	va_list ap;
 	va_start(ap, fmt);
@@ -68,27 +55,20 @@ static int os_printf(const char *fmt, ...) {
 	return os_print(buf, ret);
 }
 
-static int echo(int argc, char *argv[])
-{
-	for (int i = 1; i < argc; ++i)
-	{
+static int echo(int argc, char *argv[]) {
+	for (int i = 1; i < argc; ++i){
 		printf("%s%c", argv[i], i == argc - 1 ? '\n' : ' ');
 	}
 	fflush(stdout);
 	return argc - 1;
 }
 
-static int retcode(int argc, char *argv[])
-{
+static int retcode(int argc, char *argv[]) {
 	printf("%d\n", g_retcode);
 	fflush(stdout);
 	return 0;
 }
 
-<<<<<<< HEAD
-static int exec(int argc, char *argv[])
-{
-=======
 struct coapp_ctx {
         int cnt;
 } ctxarray[16];
@@ -155,19 +135,15 @@ static int cosched(int argc, char* argv[]) {
 }
 
 static int exec(int argc, char *argv[]) {
->>>>>>> upstream/master
 	const struct app *app = NULL;
-	for (int i = 0; i < ARRAY_SIZE(app_list); ++i)
-	{
-		if (!strcmp(argv[0], app_list[i].name))
-		{
+	for (int i = 0; i < ARRAY_SIZE(app_list); ++i) {
+		if (!strcmp(argv[0], app_list[i].name)) {
 			app = &app_list[i];
 			break;
 		}
 	}
 
-	if (!app)
-	{
+	if (!app) {
 		printf("Unknown command\n");
 		return 1;
 	}
@@ -176,24 +152,20 @@ static int exec(int argc, char *argv[]) {
 	return g_retcode;
 }
 
-static int pooltest(int argc, char *argv[])
-{
-	struct obj
-	{
+static int pooltest(int argc, char *argv[]){
+	struct obj {
 		void *field1;
 		void *field2;
 	};
 	static struct obj objmem[4];
 	static struct pool objpool = POOL_INITIALIZER_ARRAY(objmem);
 
-	if (!strcmp(argv[1], "alloc"))
-	{
+	if (!strcmp(argv[1], "alloc")) {
 		struct obj *o = pool_alloc(&objpool);
 		printf("alloc %d\n", o ? (o - objmem) : -1);
 		return 0;
 	}
-	else if (!strcmp(argv[1], "free"))
-	{
+	else if (!strcmp(argv[1], "free")) {
 		int iobj = atoi(argv[2]);
 		printf("free %d\n", iobj);
 		pool_free(&objpool, objmem + iobj);
@@ -201,16 +173,11 @@ static int pooltest(int argc, char *argv[])
 	}
 }
 
-static int syscalltest(int argc, char *argv[])
-{
+static int syscalltest(int argc, char *argv[]) {
 	int r = os_printf("%s\n", argv[1]);
 	return r - 1;
 }
 
-<<<<<<< HEAD
-int shell(int argc, char *argv[])
-{
-=======
 static int irqtest(int argc, char* argv[]) {
 	sched_run(0);
 
@@ -237,38 +204,24 @@ static int irqtest(int argc, char* argv[]) {
 }
 
 int shell(int argc, char *argv[]) {
->>>>>>> upstream/master
 	char line[256];
-	while (fgets(line, sizeof(line), stdin))
-	{
+	while (fgets(line, sizeof(line), stdin)) {
 		const char *comsep = "\n;";
 		char *stcmd;
 		char *cmd = strtok_r(line, comsep, &stcmd);
-<<<<<<< HEAD
-		while (cmd)
-		{
-			const char *argsep = " ";
-=======
 		while (cmd) {
 			const char *argsep = " \t";
->>>>>>> upstream/master
 			char *starg;
 			char *arg = strtok_r(cmd, argsep, &starg);
 			char *argv[256];
 			int argc = 0;
-<<<<<<< HEAD
-			while (arg)
-			{
-=======
 			while (arg && arg[0] != '#') {
->>>>>>> upstream/master
 				argv[argc++] = arg;
 				arg = strtok_r(NULL, argsep, &starg);
 			}
 			argv[argc] = NULL;
 
-			if (!argc)
-			{
+			if (!argc) {
 				break;
 			}
 
