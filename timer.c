@@ -10,10 +10,29 @@
 
 #include "timer.h"
 
-int timer_cnt(void) {
-	// TODO: getitimer
+int timer_cnt(void)
+{
+	struct itimerval timer;
+
+	if (getitimer(ITIMER_REAL, &timer))
+	{
+		fprintf(stderr, "Could not get the current setting of timer.\n");
+		return -1;
+	}
+
+	return (timer.it_interval.tv_sec - timer.it_value.tv_sec) * 1000000 + timer.it_interval.tv_usec - timer.it_value.tv_usec;
 }
 
-void timer_init(int ms, void (*hnd)(void)) {
-	// TODO: setitimer
+void timer_init(int ms, void (*hnd)(void))
+{
+	struct timeval init_time = (struct timeval){
+		.tv_usec = ms * 1000,
+		.tv_sec = ms / 1000};
+
+	struct itimerval init_timer = (struct itimerval){
+		.it_value = init_time,
+		.it_interval = init_time};
+
+	setitimer(ITIMER_REAL, &init_timer, NULL);
+	signal(SIGALRM, (__sighandler_t)hnd);
 }
