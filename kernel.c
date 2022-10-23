@@ -4,6 +4,8 @@
 #include "syscall.h"
 
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
 #include <ucontext.h>
@@ -16,9 +18,21 @@ static void sighnd(int sig, siginfo_t *info, void *ctx)
 	ucontext_t *uc = (ucontext_t *)ctx;
 	greg_t *regs = uc->uc_mcontext.gregs;
 
+<<<<<<< HEAD
 	regs[REG_RAX] = syscall_do(regs[REG_RAX], regs[REG_RBX],
 							   regs[REG_RCX], regs[REG_RDX],
 							   regs[REG_RSI], (void *)regs[REG_RDI]);
+=======
+	uint16_t insn = *(uint16_t*)regs[REG_RIP];
+	if (insn != 0x81cd) {
+		abort();
+	}
+
+	regs[REG_RAX] = syscall_do(regs[REG_RAX], regs[REG_RBX],
+			regs[REG_RCX], regs[REG_RDX],
+			regs[REG_RSI], (void *) regs[REG_RDI]);
+
+>>>>>>> upstream/master
 	regs[REG_RIP] += 2;
 }
 
