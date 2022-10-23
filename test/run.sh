@@ -4,7 +4,7 @@ B=$(readlink -f $(dirname $0))
 MAIN=runmain
 
 runmain() {
-	( cd $B/.. ; ./target/debug/os226-2022 )
+	( cd $B/.. ; ./main )
 }
 
 map() {
