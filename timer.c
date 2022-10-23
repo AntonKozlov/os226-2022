@@ -11,9 +11,17 @@
 #include "timer.h"
 
 int timer_cnt(void) {
-	// TODO: getitimer
+	struct itimerval timer;
+	getitimer(ITIMER_REAL, &timer);
+	return ((long)(timer.it_interval.tv_sec * 1000 + timer.it_interval.tv_usec / 1000) -
+	(long)(timer.it_value.tv_sec * 1000 + timer.it_value.tv_usec / 1000));
 }
 
 void timer_init(int ms, void (*hnd)(void)) {
-	// TODO: setitimer
+	struct itimerval timer;
+	timer.it_interval = {ms / 1000; ms * 1000};
+	timer.it_value = {ms / 1000; ms * 1000};
+
+	setitimer(ITIMER_REAL, &timer, NULL);
+	signal(SIGALRM, (__sighandler_t)hnd);
 }
