@@ -25,7 +25,7 @@ void sched_new(void (*entrypoint)(void *aspace),
 		.ctx = aspace,
 		.priority = priority,
 		.deadline = deadline,
-		.start_time = time,
+		.start_time = -1
 	};
 
 	if (!tasks)
@@ -56,6 +56,7 @@ void sched_time_elapsed(unsigned amount) {
 
 void delete_task(struct task* to_delete)
 {
+
 	if (tasks == last_task)
 	{
 		free(tasks);
@@ -79,13 +80,13 @@ void delete_task(struct task* to_delete)
 
 	if (last_task == to_delete)
 	{
-		free(last_task);
+		free(to_delete);
+		to_delete = NULL;
 		last_task = prev_task;
 		return;
 	}
 
-	struct task* after_delete_task = to_delete->next_task;
-	prev_task->next_task = after_delete_task;
+	prev_task->next_task = to_delete->next_task;
 	free(to_delete);
 	to_delete = NULL;
 }
@@ -94,7 +95,6 @@ struct task* get_max_prio_task()
 {
 	if (!tasks)
 	{
-		current_task = NULL;
 		return NULL;
 	}
 	struct task* max_prio_task = NULL;
@@ -107,11 +107,14 @@ struct task* get_max_prio_task()
 			max_prio = curr_task->priority;
 			max_prio_task = curr_task;
 		}
-
+		if (curr_task == last_task)
+		{
+			break;
+		}
 		curr_task = curr_task->next_task;
 	}
 
-	return curr_task;
+	return max_prio_task;
 
 }
 
@@ -119,7 +122,6 @@ struct task* get_min_deadline_task()
 {
 	if (!tasks)
 	{
-		current_task = NULL;
 		return NULL;
 	}
 
@@ -133,6 +135,10 @@ struct task* get_min_deadline_task()
 			min_deadline_task = curr_task;
 			min_deadline = curr_task->deadline;
 		}
+		if (curr_task == last_task)
+		{
+			break;
+		}
 
 		curr_task = curr_task->next_task;
 	}
@@ -142,7 +148,7 @@ struct task* get_min_deadline_task()
 		return get_max_prio_task();
 	}
 
-	return curr_task;
+	return min_deadline_task;
 }
 
 void run_fifo_policy()
@@ -170,9 +176,8 @@ void run_prio_policy()
 	while (current_task)
 	{
 		current_task->entrypoint(current_task->ctx);
-		struct task* prev_current_task = current_task;
+		delete_task(current_task);
 		current_task = get_max_prio_task();
-		delete_task(prev_current_task);
 	}
 }
 
@@ -182,9 +187,8 @@ void run_deadline_policy()
 	while (current_task)
 	{
 		current_task->entrypoint(current_task->ctx);
-		struct task* prev_current_task = current_task;
+		delete_task(current_task);
 		current_task = get_min_deadline_task();
-		delete_task(prev_current_task);
 	}
 }
 
