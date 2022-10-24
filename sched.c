@@ -113,10 +113,10 @@ void sched_time_elapsed(unsigned amount) {
 
 	irq_disable();
 	int endtime = time + amount; 
+	sigset_t sigset;
+	sigemptyset(&sigset);
 	while (time < endtime) {
-		irq_enable();
-		pause();
-		irq_disable();
+		sigsuspend(&sigset);
 	}
 
 	irq_enable();
