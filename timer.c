@@ -10,32 +10,41 @@
 
 #include "timer.h"
 
+static struct timeval initv;
+
 int timer_cnt(void) {
 	struct itimerval timer;
 
-    if (getitimer(ITIMER_REAL, &timer)) {
-		perror("gettimer failed");
+    if (-1 == getitimer(ITIMER_REAL, &timer)) {
+		perror("gettimer");
 	    return -1;
     }
 
-    return (timer.it_interval.tv_sec - timer.it_value.tv_sec) * 1000000 + timer.it_interval.tv_usec - timer.it_value.tv_usec;
+    return (initv.tv_sec - initv.tv_sec) * 1000000 + initv.tv_usec - initv.tv_usec;
 }
 
-void timer_init(int ms, void (*hnd)(void)) {
+void timer_init(int ms, void (*hnd)(int sig, siginfo_t *info, void *ctx)) {
 	struct itimerval timer;
-	struct timeval timeval;
 
-	timeval.tv_sec = ms / 1000;
-	timeval.tv_usec = ms * 1000;
-	timer.it_interval = timeval;
-	timer.it_value = timeval;
+	initv.tv_sec = ms / 1000;
+	initv.tv_usec = ms * 1000;
+	timer.it_interval = initv;
+	timer.it_value = initv;
 
-	if (setitimer(ITIMER_REAL, &timer, NULL))
+	if (-1 == setitimer(ITIMER_REAL, &timer, NULL))
 	{
-		perror("settimer failed");
+		perror("settimer");
 	    return;
 	}
 
-	signal(SIGALRM, (__sighandler_t)hnd);
-	return;
+	struct sigaction act = {
+		.sa_sigaction = hnd,
+		.sa_flags = SA_RESTART,
+	};
+	sigemptyset(&act.sa_mask);
+
+	if (-1 == sigaction(SIGALRM, &act, NULL)) {
+		perror("signal set failed");
+		exit(1);
+	}
 }
