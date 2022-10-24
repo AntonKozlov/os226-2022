@@ -210,7 +210,7 @@ void sched_run(enum policy policy)
 
 	irq_disable();
 
-	while (runq)
+	while (runq || waitq)
 	{
 		current = runq;
 		if (current)
