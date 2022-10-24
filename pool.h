@@ -16,13 +16,13 @@ struct pool
 	struct pool_free_block *freehead;
 };
 
-#define POOL_INITIALIZER(_mem, _nmemb, _membsz) \
-	{                                           \
-		_mem,                                   \
-			_membsz,                            \
-			_mem,                               \
-			_mem + _nmemb *_membsz,             \
-			NULL                                \
+#define POOL_INITIALIZER(_mem, _nmemb, _membsz)           \
+	{                                                     \
+		.mem = (char *)(_mem),                            \
+		.membsz = (_membsz),                              \
+		.freehead = NULL,                                 \
+		.freestart = (char *)(_mem),                      \
+		.freeend = (char *)(_mem) + (_nmemb) * (_membsz), \
 	}
 
 #define POOL_INITIALIZER_ARRAY(_array) \

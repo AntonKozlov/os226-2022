@@ -38,18 +38,12 @@ static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 
 void irq_disable(void)
 {
-	sigset_t set;
-	sigemptyset(&set);
-	sigprocmask(SIG_BLOCK, &set, NULL);
-	sigaddset(&set, SIGALRM);
+	// TODO: sigprocmask
 }
 
 void irq_enable(void)
 {
-	sigset_t set;
-	sigemptyset(&set);
-	sigprocmask(SIG_UNBLOCK, &set, NULL);
-	sigaddset(&set, SIGALRM);
+	// TODO: sigprocmask
 }
 
 static void policy_run(struct task *t)
@@ -125,17 +119,13 @@ out:
 
 void sched_time_elapsed(unsigned amount)
 {
-	irq_disable();
-
+	// TODO
+#if 0
 	int endtime = time + amount;
-	while (time < endtime)
-	{
-		irq_enable();
+	while (time < endtime) {
 		pause();
-		irq_disable();
 	}
-
-	irq_enable();
+#endif
 }
 
 static int fifo_cmp(struct task *t1, struct task *t2)
@@ -160,37 +150,12 @@ static int deadline_cmp(struct task *t1, struct task *t2)
 
 static void tick_hnd(void)
 {
-	time++;
-
-	while (waitq != NULL)
-	{
-		if (waitq->waketime <= sched_gettime())
-		{
-			struct task *t = waitq;
-			waitq = waitq->next;
-			policy_run(t);
-		}
-		else
-		{
-			break;
-		}
-	}
+	// TODO
 }
 
 long sched_gettime(void)
 {
-	int cur_time = time;
-
-	int cnt = timer_cnt();
-
-	if (timer_cnt() >= cnt)
-	{
-		return cur_time + cnt / 1000;
-	}
-	else
-	{
-		return cur_time + cnt / 1000;
-	}
+	// TODO: timer_cnt
 }
 
 void sched_run(enum policy policy)
