@@ -1,172 +1,178 @@
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
+#include <stdlib.h>
 
 #include "sched.h"
-#include "timer.h"
 #include "pool.h"
 
-struct task {
-	void (*entry)(void *as);
-	void *as;
-	int priority;
-	int deadline;
-
-	// timeout support
-	int waketime;
-
-	// policy support
-	struct task *next;
-};
-
 static int time;
+static int time = 0;
+struct task *tasks = NULL;
+struct task *currenttask = NULL;
+struct task *lasttask = NULL;
 
-static struct task *current;
-static struct task *runq;
-static struct task *waitq;
-
-static struct task *pendingq;
-static struct task *lastpending;
-
-static int (*policy_cmp)(struct task *t1, struct task *t2);
-
-static struct task taskarray[16];
-static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
-
-void irq_disable(void) {
-        // TODO: sigprocmask
-}
-
-void irq_enable(void) {
-        // TODO: sigprocmask
-}
-
-static void policy_run(struct task *t) {
-	struct task **c = &runq;
-
-	while (*c && policy_cmp(*c, t) <= 0) {
-		c = &(*c)->next;
+void delete_task(struct task *deletetarget)
+{
+	if (tasks == lasttask) {
+		free(tasks);
+		tasks = NULL;
+		return;
 	}
-	t->next = *c;
-	*c = t;
+
+	deletetarget->previoustask->nexttask = deletetarget->nexttask;
+	deletetarget->nexttask->previoustask = deletetarget->previoustask;
+
+	if (tasks == deletetarget)
+		tasks = deletetarget->nexttask;
+
+	if (lasttask == deletetarget)
+		lasttask = deletetarget->previoustask;
+
+	free(deletetarget);
+}
+
+struct task *get_max_priority_task()
+{
+	if (!tasks)
+		return NULL;
+
+	struct task *returnvalue = NULL;
+	int max_priority = -1;
+	if (tasks->start <= time) {
+		max_priority = tasks->priority;
+		returnvalue = tasks;
+	}
+
+	struct task *current = tasks->nexttask;
+	while (current != tasks) {
+		if (current->priority > max_priority && current->start <= time) {
+			max_priority = current->priority;
+			returnvalue = current;
+		}
+
+		current = current->nexttask;
+	}
+
+	return returnvalue;
+}
+
+struct task *get_min_deadline_task() {
+	if (!tasks)
+		return NULL;
+
+	struct task *returnvalue = NULL;
+	int min_deadline = INT_MAX;
+	if (tasks->start <= time && tasks->deadline > 0) {
+		min_deadline = tasks->deadline;
+		returnvalue = tasks;
+	}
+
+	struct task *current = tasks->nexttask;
+
+	while (current != tasks) {
+		if (min_deadline > current->deadline && current->deadline > 0 && current->start <= time) {
+			min_deadline = current->deadline;
+			returnvalue = current;
+		}
+
+		current = current->nexttask;
+	}
+
+	if (!returnvalue)
+		returnvalue = get_max_priority_task();
+
+	return returnvalue;
+}
+
+void run_fifo_policy()
+{
+	currenttask = tasks;
+
+	while (tasks) {
+		if (currenttask->start <= time) {
+			currenttask->entrypoint(currenttask->ctx);
+			struct task *deletetarget = currenttask;
+			currenttask = currenttask->nexttask;
+			delete_task(deletetarget);
+		} else
+			currenttask = currenttask->nexttask;
+	}
+}
+
+void run_prio_policy()
+{
+	currenttask = get_max_priority_task();
+	while (currenttask) {
+		currenttask->entrypoint(currenttask->ctx);
+		delete_task(currenttask);
+		currenttask = get_max_priority_task();
+	}
+}
+
+void run_deadline_policy()
+{
+	currenttask = get_min_deadline_task();
+	while (currenttask) {
+		currenttask->entrypoint(currenttask->ctx);
+		delete_task(currenttask);
+		currenttask = get_min_deadline_task();
+	}
 }
 
 void sched_new(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int priority,
 		int deadline) {
+	struct task *newtask = (struct task *)malloc(sizeof(struct task));
+	*newtask = (struct task) {
+		.nexttask = tasks,
+		.previoustask = lasttask,
+		.entrypoint = entrypoint,
+		.ctx = aspace,
+		.priority = priority,
+		.deadline = deadline,
+		.start = -1
+	};
 
-	struct task *t = pool_alloc(&taskpool);;
-	t->entry = entrypoint;
-	t->as = aspace;
-	t->priority = priority;
-	t->deadline = 0 < deadline ? deadline : INT_MAX;
-	t->next = NULL;
-
-	if (!lastpending) {
-		lastpending = t;
-		pendingq = t;
+	if (!tasks) {
+		tasks = newtask;
+		lasttask = tasks;
+		tasks->nexttask = tasks;
+		tasks->previoustask = tasks;
+		lasttask->nexttask = tasks;
+		lasttask->previoustask = tasks;
 	} else {
-		lastpending->next = t;
-		lastpending = t;
+		lasttask->nexttask = newtask;
+		lasttask = newtask;
+		tasks->previoustask = lasttask;
 	}
 }
 
 void sched_cont(void (*entrypoint)(void *aspace),
 		void *aspace,
 		int timeout) {
-
-	if (current->next != current) {
-		fprintf(stderr, "Mulitiple sched_cont\n");
-		return;
-	}
-
-	irq_disable();
-
-	if (!timeout) {
-		policy_run(current);
-		goto out;
-	}
-
-	current->waketime = time + timeout;
-
-	struct task **c = &waitq;
-	while (*c && (*c)->waketime < current->waketime) {
-		c = &(*c)->next;
-	}
-	current->next = *c;
-	*c = current;
-
-out:
-	irq_enable();
+	sched_new(entrypoint, aspace, currenttask->priority, currenttask->deadline);
+	lasttask->start = time + timeout;
 }
 
 void sched_time_elapsed(unsigned amount) {
-	// TODO
-#if 0
-	int endtime = time + amount; 
-	while (time < endtime) {
-		pause();
-	}
-#endif
-}
+	time += amount;
 
-static int fifo_cmp(struct task *t1, struct task *t2) {
-	return -1;
-}
-
-static int prio_cmp(struct task *t1, struct task *t2) {
-	return t2->priority - t1->priority;
-}
-
-static int deadline_cmp(struct task *t1, struct task *t2) {
-	int d = t1->deadline - t2->deadline;
-	if (d) {
-		return d;
-	}
-	return prio_cmp(t1, t2);
-}
-
-static void tick_hnd(void) {
-	// TODO
-}
-
-long sched_gettime(void) {
-	// TODO: timer_cnt
 }
 
 void sched_run(enum policy policy) {
-	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp, deadline_cmp };
-	policy_cmp = policies[policy];
-
-	struct task *t = pendingq;
-	while (t) {
-		struct task *next = t->next;
-		policy_run(t);
-		t = next;
+	if (!tasks)
+		return;
+	switch (policy) {
+		case POLICY_FIFO:
+			run_fifo_policy();
+			break;
+		case POLICY_PRIO:
+			run_prio_policy();
+			break;
+		case POLICY_DEADLINE:
+			run_deadline_policy();
+			break;
 	}
-
-	timer_init(1, tick_hnd);
-
-	irq_disable();
-
-	while (runq || waitq) {
-		current = runq;
-		if (current) {
-			runq = current->next;
-			current->next = current;
-		}
-
-		irq_enable();
-		if (current) {
-			current->entry(current->as);
-		} else {
-			pause();
-		}
-		irq_disable();
-	}
-
-	irq_enable();
 }

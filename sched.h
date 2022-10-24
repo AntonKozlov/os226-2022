@@ -1,6 +1,7 @@
 #pragma once
 
 enum policy {
+
 	// first-in, first-out; run tasks in order of their arrival
 	POLICY_FIFO,
 
@@ -12,6 +13,16 @@ enum policy {
 	// consider deadline, execute process with Earliest Deadline First.
 	// Fallback to priority policy if deadlines are equal
 	POLICY_DEADLINE,
+};
+
+struct task {
+	struct task *nexttask;
+	struct task *previoustask;
+	void (*entrypoint)(void *ctx);
+	void *ctx;
+	int priority;
+	int deadline;
+	int start;
 };
 
 // Add new task
@@ -31,9 +42,3 @@ extern void sched_time_elapsed(unsigned amount);
 // Scheduler loop, start executing tasks until all of them finish
 extern void sched_run(enum policy policy);
 
-// milliseconds since system start
-extern long sched_gettime(void);
-
-// DANGEROUS: only for tests
-extern void irq_disable(void);
-extern void irq_enable(void);
