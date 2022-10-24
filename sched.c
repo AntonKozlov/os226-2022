@@ -46,6 +46,7 @@ void sched_cont(void (*entrypoint)(void *aspace),
 		int timeout)
 {
 	sched_new(entrypoint, aspace, current_task->priority, current_task->deadline);
+	
 	last_task->start_time = time + timeout;
 }
 
