@@ -76,7 +76,7 @@ static void print(struct app_ctx *ctx, const char *msg) {
                 refstart = reftime();
         }
 
-	printf("%16s id %d cnt %d time %ld reftime %ld\n",
+	printf("%16s id %ld cnt %d time %ld reftime %ld\n",
 			msg, 1 + ctx - ctxarray, ctx->cnt, sched_gettime(), reftime() - refstart);
 	fflush(stdout);
 }
