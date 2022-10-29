@@ -25,6 +25,7 @@ struct task {
 	struct ctx ctx;
 
 	void (*entry)(void *as);
+
 	void *as;
 	int priority;
 
@@ -54,11 +55,11 @@ static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 static sigset_t irqs;
 
 void irq_disable(void) {
-        sigprocmask(SIG_BLOCK, &irqs, NULL);
+	sigprocmask(SIG_BLOCK, &irqs, NULL);
 }
 
 void irq_enable(void) {
-        sigprocmask(SIG_UNBLOCK, &irqs, NULL);
+	sigprocmask(SIG_UNBLOCK, &irqs, NULL);
 }
 
 static void policy_run(struct task *t) {
@@ -72,20 +73,23 @@ static void policy_run(struct task *t) {
 }
 
 static void doswitch(void) {
-        struct task *old = current;
-        current = runq;
-        runq = current->next;
+	struct task *old = current;
+	current = runq;
+	runq = current->next;
 
-        current_start = sched_gettime();
-        ctx_switch(&old->ctx, &current->ctx);
+	current_start = sched_gettime();
+	ctx_switch(&old->ctx, &current->ctx);
 }
 
 static void tasktramp(void) {
+	irq_enable();
+	current->entry(current->as);
+	irq_disable();
 }
 
 void sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
+               void *aspace,
+               int priority) {
 
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
@@ -105,30 +109,29 @@ void sched_new(void (*entrypoint)(void *aspace),
 }
 
 void sched_sleep(unsigned ms) {
+	if (!ms) {
+		irq_disable();
+		policy_run(current);
+		doswitch();
+		irq_enable();
+		return;
+	}
 
-        if (!ms) {
-                irq_disable();
-                policy_run(current);
-                doswitch();
-                irq_enable();
-                return;
-        }
+	current->waketime = sched_gettime() + ms;
 
-        current->waketime = sched_gettime() + ms;
+	int curtime;
+	while ((curtime = sched_gettime()) < current->waketime) {
+		irq_disable();
+		struct task **c = &waitq;
+		while (*c && (*c)->waketime < current->waketime) {
+			c = &(*c)->next;
+		}
+		current->next = *c;
+		*c = current;
 
-        int curtime;
-        while ((curtime = sched_gettime()) < current->waketime) {
-                irq_disable();
-                struct task **c = &waitq;
-                while (*c && (*c)->waketime < current->waketime) {
-                        c = &(*c)->next;
-                }
-                current->next = *c;
-                *c = current;
-
-                doswitch();
-                irq_enable();
-        }
+		doswitch();
+		irq_enable();
+	}
 }
 
 static int fifo_cmp(struct task *t1, struct task *t2) {
@@ -140,41 +143,58 @@ static int prio_cmp(struct task *t1, struct task *t2) {
 }
 
 static void hctx_push(greg_t *regs, unsigned long val) {
-        regs[REG_RSP] -= sizeof(unsigned long);
-        *(unsigned long *) regs[REG_RSP] = val;
+	regs[REG_RSP] -= sizeof(unsigned long);
+	*(unsigned long *) regs[REG_RSP] = val;
 }
 
 static void bottom(void) {
-        time += TICK_PERIOD;
+	time += TICK_PERIOD;
+
+	irq_disable();
+	policy_run(current);
+	for (struct task *cur = waitq; cur != NULL && cur->next != NULL; cur = cur->next) {
+		if (cur->next->waketime <= time) {
+			struct task *t = cur->next;
+			cur->next = cur->next->next;
+			policy_run(t);
+		}
+	}
+	if (waitq != NULL && waitq->waketime <= time) {
+		struct task *t = waitq;
+		waitq = waitq->next;
+		policy_run(t);
+	}
+	doswitch();
+	irq_enable();
 }
 
 static void top(int sig, siginfo_t *info, void *ctx) {
-        ucontext_t *uc = (ucontext_t *) ctx;
-        greg_t *regs = uc->uc_mcontext.gregs;
+	ucontext_t *uc = (ucontext_t *) ctx;
+	greg_t *regs = uc->uc_mcontext.gregs;
 
-        unsigned long oldsp = regs[REG_RSP];
-        regs[REG_RSP] -= SYSV_REDST_SZ;
-        hctx_push(regs, regs[REG_RIP]);
-        hctx_push(regs, sig);
-        hctx_push(regs, regs[REG_RBP]);
-        hctx_push(regs, oldsp);
-        hctx_push(regs, (unsigned long) bottom);
-        regs[REG_RIP] = (greg_t) tramptramp;
+	unsigned long oldsp = regs[REG_RSP];
+	regs[REG_RSP] -= SYSV_REDST_SZ;
+	hctx_push(regs, regs[REG_RIP]);
+	hctx_push(regs, sig);
+	hctx_push(regs, regs[REG_RBP]);
+	hctx_push(regs, oldsp);
+	hctx_push(regs, (unsigned long) bottom);
+	regs[REG_RIP] = (greg_t) tramptramp;
 }
 
 long sched_gettime(void) {
-        int cnt1 = timer_cnt() / 1000;
-        int time1 = time;
-        int cnt2 = timer_cnt() / 1000;
-        int time2 = time;
+	int cnt1 = timer_cnt() / 1000;
+	int time1 = time;
+	int cnt2 = timer_cnt() / 1000;
+	int time2 = time;
 
-        return (cnt1 <= cnt2) ?
-                time1 + cnt2 :
-                time2 + cnt2;
+	return (cnt1 <= cnt2) ?
+	       time1 + cnt2 :
+	       time2 + cnt2;
 }
 
 void sched_run(enum policy policy) {
-	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp };
+	int (*policies[])(struct task *t1, struct task *t2) = {fifo_cmp, prio_cmp};
 	policy_cmp = policies[policy];
 
 	struct task *t = pendingq;
@@ -200,14 +220,13 @@ void sched_run(enum policy policy) {
 
 	while (runq || waitq) {
 		if (runq) {
-                        policy_run(current);
-                        doswitch();
-                } else {
-                        sigsuspend(&none);
-                }
+			policy_run(current);
+			doswitch();
+		} else {
+			sigsuspend(&none);
+		}
 
 	}
 
 	irq_enable();
 }
-
