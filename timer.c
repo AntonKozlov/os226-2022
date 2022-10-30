@@ -34,13 +34,13 @@ void timer_init(int ms, void (*hnd)(int sig, siginfo_t *info, void *ctx)) {
 	if (-1 == setitimer(ITIMER_REAL, &timer, NULL))
 	{
 		perror("settimer");
-	    return;
 	}
 
 	struct sigaction act = {
 		.sa_sigaction = hnd,
 		.sa_flags = SA_RESTART,
 	};
+
 	sigemptyset(&act.sa_mask);
 
 	if (-1 == sigaction(SIGALRM, &act, NULL)) {
