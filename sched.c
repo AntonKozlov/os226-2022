@@ -1,158 +1,224 @@
+#define _GNU_SOURCE
+
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
 
 #include "sched.h"
+#include "timer.h"
 #include "pool.h"
+#include "ctx.h"
 
-const int INF = (1 << 30);
+/* AMD64 Sys V ABI, 3.2.2 The Stack Frame:
+The 128-byte area beyond the location pointed to by %rsp is considered to
+be reserved and shall not be modified by signal or interrupt handlers */
+#define SYSV_REDST_SZ 128
 
-static int time = 0;
-task *head_task = NULL;
-task *curr_task = NULL;
-task *tail_task = NULL;
+#define TICK_PERIOD 100
 
-task *get_top_priority_task() {
-	if (!head_task) return NULL;
+extern void tramptramp(void);
 
-	int priority = -1;
-	task *result = NULL;
-	if (head_task->time <= time) {
-		priority = head_task->priority;
-		result = head_task;
-	}
+struct task {
+	char stack[8192];
+	struct ctx ctx;
 
-	for (task *current = head_task->next; current != head_task; current = current->next) {
-		if (current->priority > priority && current->time <= time) {
-			priority = current->priority;
-			result = current;
-		}
-	}
+	void (*entry)(void *as);
+	void *as;
+	int priority;
 
-	return result;
+	// timeout support
+	int waketime;
+
+	// policy support
+	struct task *next;
+};
+
+static int time;
+
+static int current_start;
+static struct task *current;
+static struct task *idle;
+static struct task *runq;
+static struct task *waitq;
+
+static struct task *pendingq;
+static struct task *lastpending;
+
+static int (*policy_cmp)(struct task *t1, struct task *t2);
+
+static struct task taskarray[16];
+static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
+
+static sigset_t irqs;
+
+void irq_disable(void) {
+        sigprocmask(SIG_BLOCK, &irqs, NULL);
 }
 
-void remove_task(task *task) {
-	if (head_task == tail_task) {
-		free(head_task);
-		head_task = NULL;
-		return;
-	}
-
-	task->prev->next = task->next;
-	task->next->prev = task->prev;
-	if (head_task == task) head_task = task->next;
-	if (tail_task == task) tail_task = task->prev;
-
-	free(task);
+void irq_enable(void) {
+        sigprocmask(SIG_UNBLOCK, &irqs, NULL);
 }
 
-task *get_closest_deadline_task() {
-	if (!head_task) return NULL;
+static void policy_run(struct task *t) {
+	struct task **c = &runq;
 
-	int mn;
-	task *result;
-	if (head_task->time <= time && head_task->deadline > 0) {
-		mn = head_task->deadline;
-		result = head_task;
-	} else {
-		mn = INF;
-		result = NULL;
+	while (*c && (t == idle || policy_cmp(*c, t) <= 0)) {
+		c = &(*c)->next;
 	}
-
-	for (task *current = head_task->next; current != head_task; current = current->next) {
-		if (mn > current->deadline && current->deadline > 0 && current->time <= time) {
-			mn = current->deadline;
-			result = current;
-		}
-	}
-
-	if (!result) return get_top_priority_task();
-	else return result;
+	t->next = *c;
+	*c = t;
 }
 
-void exec_prio() {
-	if (!head_task) return;
+static void doswitch(void) {
+        struct task *old = current;
+        current = runq;
+        runq = current->next;
 
-	for (curr_task = get_top_priority_task(); curr_task != NULL; curr_task = get_top_priority_task()) {
-		curr_task->entrypoint(curr_task->ctx);
-		remove_task(curr_task);
-		curr_task = get_top_priority_task();
-	}
+        current_start = sched_gettime();
+        ctx_switch(&old->ctx, &current->ctx);
 }
 
-void exec_fifo() {
-	if (!head_task) return;
-
-	curr_task = head_task;
-	while (head_task) {
-		if (curr_task->time <= time) {
-			curr_task->entrypoint(curr_task->ctx);
-			task *remove = curr_task;
-			curr_task = curr_task->next;
-			remove_task(remove);
-		} else {
-			curr_task = curr_task->next;
-		}
-	}
-}
-
-void exec_deadline() {
-	if (!head_task) return;
-	for (curr_task = get_closest_deadline_task(); curr_task != NULL; curr_task = get_closest_deadline_task()) {
-		curr_task->entrypoint(curr_task->ctx);
-		remove_task(curr_task);
-		curr_task = get_closest_deadline_task();
-	}
+static void tasktramp(void) {
+	irq_enable();
+	current->entry(current->as);
+	irq_disable();
+	doswitch();
 }
 
 void sched_new(void (*entrypoint)(void *aspace),
-			   void *aspace,
-			   int priority,
-			   int deadline) {
-	task *next_task = (task *) malloc(sizeof(task));
-	*next_task = (task) {
-			.next = head_task,
-			.prev = tail_task,
-			.entrypoint = entrypoint,
-			.ctx = aspace,
-			.priority = priority,
-			.deadline = deadline,
-			.time = -1
-	};
+		void *aspace,
+		int priority) {
 
-	if (!head_task) {
-		head_task = next_task;
-		tail_task = head_task;
-		head_task->next = head_task;
-		head_task->prev = head_task;
-		tail_task->next = head_task;
-		tail_task->prev = head_task;
+	struct task *t = pool_alloc(&taskpool);
+	t->entry = entrypoint;
+	t->as = aspace;
+	t->priority = priority;
+	t->next = NULL;
+
+	ctx_make(&t->ctx, tasktramp, t->stack, sizeof(t->stack));
+
+	if (!lastpending) {
+		lastpending = t;
+		pendingq = t;
 	} else {
-		tail_task->next = next_task;
-		tail_task = next_task;
-		head_task->prev = tail_task;
+		lastpending->next = t;
+		lastpending = t;
 	}
 }
 
-void sched_cont(void (*entrypoint)(void *aspace),
-				void *aspace,
-				int timeout) {
-	sched_new(entrypoint, aspace, curr_task->priority, curr_task->deadline);
-	tail_task->time = time + timeout;
+void sched_sleep(unsigned ms) {
+
+        if (!ms) {
+                irq_disable();
+                policy_run(current);
+                doswitch();
+                irq_enable();
+                return;
+        }
+
+        current->waketime = sched_gettime() + ms;
+
+        int curtime;
+        while ((curtime = sched_gettime()) < current->waketime) {
+                irq_disable();
+                struct task **c = &waitq;
+                while (*c && (*c)->waketime < current->waketime) {
+                        c = &(*c)->next;
+                }
+                current->next = *c;
+                *c = current;
+
+                doswitch();
+                irq_enable();
+        }
 }
 
-void sched_time_elapsed(unsigned amount) {
-	time += amount;
+static int fifo_cmp(struct task *t1, struct task *t2) {
+	return -1;
+}
+
+static int prio_cmp(struct task *t1, struct task *t2) {
+	return t2->priority - t1->priority;
+}
+
+static void hctx_push(greg_t *regs, unsigned long val) {
+        regs[REG_RSP] -= sizeof(unsigned long);
+        *(unsigned long *) regs[REG_RSP] = val;
+}
+
+static void bottom(void) {
+        time += TICK_PERIOD;
+		
+		for (; waitq != NULL && waitq->waketime <= sched_gettime(); waitq = waitq-> next) {
+			policy_run(waitq);
+		}
+		
+		policy_run(current);
+		doswitch();
+}
+
+static void top(int sig, siginfo_t *info, void *ctx) {
+        ucontext_t *uc = (ucontext_t *) ctx;
+        greg_t *regs = uc->uc_mcontext.gregs;
+
+        unsigned long oldsp = regs[REG_RSP];
+        regs[REG_RSP] -= SYSV_REDST_SZ;
+        hctx_push(regs, regs[REG_RIP]);
+        hctx_push(regs, sig);
+        hctx_push(regs, regs[REG_RBP]);
+        hctx_push(regs, oldsp);
+        hctx_push(regs, (unsigned long) bottom);
+        regs[REG_RIP] = (greg_t) tramptramp;
+}
+
+long sched_gettime(void) {
+        int cnt1 = timer_cnt() / 1000;
+        int time1 = time;
+        int cnt2 = timer_cnt() / 1000;
+        int time2 = time;
+
+        return (cnt1 <= cnt2) ?
+                time1 + cnt2 :
+                time2 + cnt2;
 }
 
 void sched_run(enum policy policy) {
-	if (policy == POLICY_FIFO) {
-		exec_fifo();
-	} else if (policy == POLICY_PRIO) {
-		exec_prio();
-	} else if (policy == POLICY_DEADLINE) {
-		exec_deadline();
+	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp };
+	policy_cmp = policies[policy];
+
+	struct task *t = pendingq;
+	while (t) {
+		struct task *next = t->next;
+		policy_run(t);
+		t = next;
 	}
+
+	sigemptyset(&irqs);
+	sigaddset(&irqs, SIGALRM);
+
+	timer_init(TICK_PERIOD, top);
+
+	irq_disable();
+
+	idle = pool_alloc(&taskpool);
+
+	current = idle;
+
+	sigset_t none;
+	sigemptyset(&none);
+
+	while (runq || waitq) {
+		if (runq) {
+                        policy_run(current);
+                        doswitch();
+                } else {
+                        sigsuspend(&none);
+                }
+
+	}
+
+	irq_enable();
 }
+
