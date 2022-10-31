@@ -151,7 +151,7 @@ static void hctx_push(greg_t *regs, unsigned long val) {
 static void bottom(void) {
 	time += TICK_PERIOD;
 	
-	for (; waitq != NULL && waitq->waketime <= sched_gettime(); waitq = waitq-> next) {
+	for (; waitq != NULL && waitq->waketime <= sched_gettime(); waitq = waitq->next) {
 		policy_run(waitq);
 	}
 		
