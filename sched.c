@@ -26,7 +26,7 @@
 #define PAGE_SIZE 4096
 
 #define USER_PAGES 1024
-#define USER_START ((void*)0x400000)
+#define USER_START ((void*) 0x400000)
 #define USER_STACK_PAGES 2
 
 extern int shell(int argc, char *argv[]);
@@ -43,6 +43,7 @@ struct task {
 	struct vmctx vm;
 
 	void (*entry)(void *as);
+
 	void *as;
 	int priority;
 
@@ -72,7 +73,7 @@ static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 static sigset_t irqs;
 
 static int memfd = -1;
-static unsigned long bitmap_pages[MEM_PAGES / sizeof(unsigned long) * CHAR_BIT];
+static unsigned long bitmap_pages[MEM_PAGES / ULONG_WIDTH];
 
 void irq_disable(void) {
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
@@ -82,8 +83,25 @@ void irq_enable(void) {
 	sigprocmask(SIG_UNBLOCK, &irqs, NULL);
 }
 
-static int bitmap_alloc(unsigned long *bitmap, size_t size) {
+static int find_free_bit(const unsigned long *bitmap, size_t size) {
+	size_t n = size / sizeof(*bitmap);
+	for (int i = 0; i < n; ++i) {
+		if (bitmap[i] != -1) {
+			int chunk_shift = i * (int) sizeof(*bitmap);
+			int bit_index = ffsl((long) bitmap[i] + 1) - 1;
+			return chunk_shift + bit_index;
+		}
+	}
 	return -1;
+}
+
+static int bitmap_alloc(unsigned long *bitmap, size_t size) {
+	int free_bit = find_free_bit(bitmap, size);
+	if (free_bit == -1) return -1;
+
+	bitmap[free_bit / sizeof(*bitmap)] |= free_bit % sizeof(*bitmap);
+
+	return free_bit;
 }
 
 static void policy_run(struct task *t) {
@@ -108,6 +126,27 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+	for (size_t i = 0; i < USER_PAGES; ++i) {
+		if (vm->map[i] != -1) {
+			if (munmap(USER_START + i * PAGE_SIZE, PAGE_SIZE) != 0) {
+				perror("munmap failed");
+				abort();
+			}
+
+			void *mapped_area_addr = mmap(
+				USER_START + i * PAGE_SIZE,
+				PAGE_SIZE,
+				PROT_READ | PROT_WRITE | PROT_EXEC,
+				MAP_SHARED | MAP_FIXED_NOREPLACE,
+				memfd,
+				vm->map[i] * PAGE_SIZE
+			);
+			if (mapped_area_addr == MAP_FAILED) {
+				perror("mmap failed");
+				abort();
+			}
+		}
+	}
 }
 
 static void doswitch(void) {
@@ -131,14 +170,11 @@ static void tasktramp0(void) {
 	struct ctx dummy, new;
 	vmctx_apply(&current->vm);
 	ctx_make(&new, tasktramp, USER_START + (USER_PAGES - USER_STACK_PAGES) * PAGE_SIZE,
-			USER_STACK_PAGES * PAGE_SIZE);
+	         USER_STACK_PAGES * PAGE_SIZE);
 	ctx_switch(&dummy, &new);
 }
 
-void sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
-
+void sched_new(void (*entrypoint)(void *aspace), void *aspace, int priority) {
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
 	t->as = aspace;
@@ -158,7 +194,6 @@ void sched_new(void (*entrypoint)(void *aspace),
 }
 
 void sched_sleep(unsigned ms) {
-
 	if (!ms) {
 		irq_disable();
 		policy_run(current);
@@ -236,13 +271,11 @@ long sched_gettime(void) {
 	int cnt2 = timer_cnt() / 1000;
 	int time2 = time;
 
-	return (cnt1 <= cnt2) ?
-		time1 + cnt2 :
-		time2 + cnt2;
+	return (cnt1 <= cnt2) ? time1 + cnt2 : time2 + cnt2;
 }
 
 void sched_run(enum policy policy) {
-	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp };
+	int (*policies[])(struct task *t1, struct task *t2) = {fifo_cmp, prio_cmp};
 	policy_cmp = policies[policy];
 
 	struct task *t = pendingq;
@@ -284,14 +317,14 @@ static void sighnd(int sig, siginfo_t *info, void *ctx) {
 	ucontext_t *uc = (ucontext_t *) ctx;
 	greg_t *regs = uc->uc_mcontext.gregs;
 
-	uint16_t insn = *(uint16_t*)regs[REG_RIP];
+	uint16_t insn = *(uint16_t *) regs[REG_RIP];
 	if (insn != 0x81cd) {
 		abort();
 	}
 
 	regs[REG_RAX] = syscall_do(regs[REG_RAX], regs[REG_RBX],
-			regs[REG_RCX], regs[REG_RDX],
-			regs[REG_RSI], (void *) regs[REG_RDI]);
+	                           regs[REG_RCX], regs[REG_RDX],
+	                           regs[REG_RSI], (void *) regs[REG_RDI]);
 
 	regs[REG_RIP] += 2;
 }
