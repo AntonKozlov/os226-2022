@@ -86,7 +86,7 @@ void irq_enable(void) {
 static int find_free_bit(const unsigned long *bitmap, size_t size) {
 	size_t n = size / sizeof(*bitmap);
 	for (int i = 0; i < n; ++i) {
-		if (bitmap[i] != -1) {
+		if (bitmap[i] != ULONG_MAX) {
 			int chunk_shift = i * (int) sizeof(*bitmap);
 			int bit_index = ffsl((long) bitmap[i] + 1) - 1;
 			return chunk_shift + bit_index;
