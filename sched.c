@@ -29,6 +29,7 @@
 #define USER_START ((void*)0x400000)
 #define USER_STACK_PAGES 2
 
+#define ulong unsigned long
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
@@ -83,7 +84,11 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
-	return -1;
+	int b = 0;
+	while(b < MEM_PAGES && (bitmap[b / sizeof(ulong)] & (1 << (b % sizeof(ulong))))) b++;
+	if (b == size / sizeof(unsigned long)) return -1;
+	bitmap[b / sizeof(ulong)] |= 1 << (b % sizeof(ulong));
+	return b;
 }
 
 static void policy_run(struct task *t) {
@@ -108,6 +113,16 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+	for (int i = 0; i < USER_PAGES; i++)
+		if(vm->map[i] != -1){
+			munmap(USER_START + i * PAGE_SIZE, PAGE_SIZE);
+			mmap(USER_START + i * PAGE_SIZE,
+			     PAGE_SIZE,
+			     PROT_READ | PROT_WRITE,
+			     MAP_SHARED,
+			     memfd,
+			     vm->map[i] * PAGE_SIZE);
+		}
 }
 
 static void doswitch(void) {
