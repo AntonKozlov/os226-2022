@@ -85,7 +85,7 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
-	int type_size = (sizeof(ulong) * CHAR_BIT)
+	int type_size = (sizeof(ulong) * CHAR_BIT);
 	for (int i = 0; i < size; i++) {
 		ulong bit = ((ulong) 1) << (type_size - 1);
 		for (int j = 0; j < (type_size - 1); j++) {
