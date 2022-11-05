@@ -72,7 +72,7 @@ static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 static sigset_t irqs;
 
 static int memfd = -1;
-static unsigned long bitmap_pages[MEM_PAGES / sizeof(unsigned long) * CHAR_BIT];
+static unsigned long bitmap_pages[MEM_PAGES / (sizeof(unsigned long) * CHAR_BIT)];
 
 void irq_disable(void) {
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
@@ -83,7 +83,17 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
-	return -1;
+	for (int i = 0; i < size; i++) {
+    unsigned long bit = ((unsigned long) 1) << ((sizeof(unsigned long) * CHAR_BIT) - 1);
+    for (int offset = 0; offset < ((sizeof(unsigned long) * CHAR_BIT) - 1); offset++) {
+        if ((bit & bitmap[i]) == 0) {
+            bitmap[i] |= bit;
+            return i * (sizeof(unsigned long) * CHAR_BIT) + offset;
+        }
+        bit = bit / 2;
+	    }
+    }
+    return -1;
 }
 
 static void policy_run(struct task *t) {
@@ -108,6 +118,13 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+    for (int i = 0; i < USER_PAGES; i++) {
+    if (vm->map[i] != -1) {
+        munmap(USER_START + i * PAGE_SIZE, PAGE_SIZE);
+        mmap(USER_START + i * PAGE_SIZE, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, memfd,
+             vm->map[i] * PAGE_SIZE);
+        }
+    }
 }
 
 static void doswitch(void) {
