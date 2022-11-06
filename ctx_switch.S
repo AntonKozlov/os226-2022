@@ -9,6 +9,7 @@ ctx_switch:
 	mov %r15, 4*8(%rdi)
 	mov %rsp, 5*8(%rdi)
 	mov %rbp, 6*8(%rdi)
+	// FIXME handle mxcsr & x87 CW
 
 	mov 0*8(%rsi), %rbx
 	mov 1*8(%rsi), %r12
