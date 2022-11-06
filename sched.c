@@ -83,6 +83,21 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
+	for (int i = 0; i < size / sizeof(unsigned long); i++) {
+		unsigned long mask = 1 << (sizeof(unsigned long) - 1);
+
+		for (int j = 0; j < (sizeof(unsigned long) - 1); j++) {
+			if (bitmap[i] & mask) {
+				mask >>= 1;
+				continue;
+			}
+
+			bitmap[i] |= mask;
+
+			return i * sizeof(unsigned long) + j;
+		}
+	}
+
 	return -1;
 }
 
@@ -108,6 +123,17 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+	for (int i = 0; i < USER_PAGES; i++) {
+		if (vm->map[i] == -1) continue;
+
+		munmap(USER_START + i * PAGE_SIZE, PAGE_SIZE);
+		mmap(USER_START + i * PAGE_SIZE,
+			 PAGE_SIZE,
+			 PROT_READ | PROT_WRITE | PROT_EXEC,
+			 MAP_SHARED,
+			 memfd,
+			 vm->map[i] * PAGE_SIZE);
+	}
 }
 
 static void doswitch(void) {
