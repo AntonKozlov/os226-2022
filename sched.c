@@ -33,16 +33,11 @@ extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
 
-<<<<<<< HEAD
-struct task
-{
-=======
 struct vmctx {
 	unsigned map[USER_PAGES];
 };
 
 struct task {
->>>>>>> upstream/master
 	char stack[8192];
 	struct ctx ctx;
 	struct vmctx vm;
@@ -76,18 +71,8 @@ static struct pool taskpool = POOL_INITIALIZER_ARRAY(taskarray);
 
 static sigset_t irqs;
 
-<<<<<<< HEAD
-void irq_disable(void)
-{
-	sigprocmask(SIG_BLOCK, &irqs, NULL);
-}
-
-void irq_enable(void)
-{
-	sigprocmask(SIG_UNBLOCK, &irqs, NULL);
-=======
 static int memfd = -1;
-static unsigned long bitmap_pages[MEM_PAGES / sizeof(unsigned long) * CHAR_BIT];
+static unsigned long bitmap_pages[MEM_PAGES / (sizeof(unsigned long) * CHAR_BIT)];
 
 void irq_disable(void) {
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
@@ -98,12 +83,20 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
-	return -1;
->>>>>>> upstream/master
+	int bit = 0;
+
+	while (bit < MEM_PAGES && (bitmap[bit / sizeof(unsigned long)] & (1 << (bit % sizeof(unsigned long))))) {
+		bit++;
+	}
+
+	if (bit < MEM_PAGES) {
+		bitmap[bit / (sizeof(unsigned long) * CHAR_BIT)] |= 1 << (bit % (sizeof(unsigned long) * CHAR_BIT));
+	}
+
+	return bit;
 }
 
-static void policy_run(struct task *t)
-{
+static void policy_run(struct task *t) {
 	struct task **c = &runq;
 
 	while (*c && (t == idle || policy_cmp(*c, t) <= 0))
@@ -114,20 +107,6 @@ static void policy_run(struct task *t)
 	*c = t;
 }
 
-<<<<<<< HEAD
-static void doswitch(void)
-{
-	struct task *old = current;
-	current = runq;
-	runq = current->next;
-
-	current_start = sched_gettime();
-	ctx_switch(&old->ctx, &current->ctx);
-}
-
-static void tasktramp(void)
-{
-=======
 static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 	memset(vm->map, -1, sizeof(vm->map));
 	for (int i = 0; i < stack_size / PAGE_SIZE; ++i) {
@@ -140,6 +119,12 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+	for (int i = 0; i < USER_PAGES; i++) {
+		if (vm->map[i] != -1) {
+			munmap(USER_START + i * PAGE_SIZE, PAGE_SIZE);
+			mmap(USER_START + i * PAGE_SIZE, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, memfd, PAGE_SIZE * vm->map[i]);
+		}
+	}
 }
 
 static void doswitch(void) {
@@ -153,13 +138,10 @@ static void doswitch(void) {
 }
 
 static void tasktramp(void) {
->>>>>>> upstream/master
 	irq_enable();
 	current->entry(current->as);
 	irq_disable();
 	doswitch();
-<<<<<<< HEAD
-=======
 }
 
 static void tasktramp0(void) {
@@ -168,13 +150,11 @@ static void tasktramp0(void) {
 	ctx_make(&new, tasktramp, USER_START + (USER_PAGES - USER_STACK_PAGES) * PAGE_SIZE,
 			USER_STACK_PAGES * PAGE_SIZE);
 	ctx_switch(&dummy, &new);
->>>>>>> upstream/master
 }
 
 void sched_new(void (*entrypoint)(void *aspace),
 			   void *aspace,
-			   int priority)
-{
+			   int priority) {
 
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
@@ -185,27 +165,19 @@ void sched_new(void (*entrypoint)(void *aspace),
 	vmctx_make(&t->vm, 8192);
 	ctx_make(&t->ctx, tasktramp0, t->stack, sizeof(t->stack));
 
-	if (!lastpending)
-	{
+	if (!lastpending) {
 		lastpending = t;
 		pendingq = t;
 	}
-	else
-	{
+	else {
 		lastpending->next = t;
 		lastpending = t;
 	}
 }
 
-void sched_sleep(unsigned ms)
-{
+void sched_sleep(unsigned ms) {
 
-<<<<<<< HEAD
-	if (!ms)
-	{
-=======
 	if (!ms) {
->>>>>>> upstream/master
 		irq_disable();
 		policy_run(current);
 		doswitch();
@@ -216,19 +188,10 @@ void sched_sleep(unsigned ms)
 	current->waketime = sched_gettime() + ms;
 
 	int curtime;
-<<<<<<< HEAD
-	while ((curtime = sched_gettime()) < current->waketime)
-	{
-		irq_disable();
-		struct task **c = &waitq;
-		while (*c && (*c)->waketime < current->waketime)
-		{
-=======
 	while ((curtime = sched_gettime()) < current->waketime) {
 		irq_disable();
 		struct task **c = &waitq;
 		while (*c && (*c)->waketime < current->waketime) {
->>>>>>> upstream/master
 			c = &(*c)->next;
 		}
 		current->next = *c;
@@ -239,41 +202,14 @@ void sched_sleep(unsigned ms)
 	}
 }
 
-static int fifo_cmp(struct task *t1, struct task *t2)
-{
+static int fifo_cmp(struct task *t1, struct task *t2) {
 	return -1;
 }
 
-static int prio_cmp(struct task *t1, struct task *t2)
-{
+static int prio_cmp(struct task *t1, struct task *t2) {
 	return t2->priority - t1->priority;
 }
 
-<<<<<<< HEAD
-static void hctx_push(greg_t *regs, unsigned long val)
-{
-	regs[REG_RSP] -= sizeof(unsigned long);
-	*(unsigned long *)regs[REG_RSP] = val;
-}
-
-static void bottom(void)
-{
-	time += TICK_PERIOD;
-
-	while (waitq && waitq->waketime <= sched_gettime())
-	{
-		policy_run(waitq);
-		waitq = waitq->next;
-	}
-
-	policy_run(current);
-	doswitch();
-}
-
-static void top(int sig, siginfo_t *info, void *ctx)
-{
-	ucontext_t *uc = (ucontext_t *)ctx;
-=======
 static void hctx_push(greg_t *regs, unsigned long val) {
 	regs[REG_RSP] -= sizeof(unsigned long);
 	*(unsigned long *) regs[REG_RSP] = val;
@@ -301,23 +237,11 @@ static void bottom(void) {
 
 static void top(int sig, siginfo_t *info, void *ctx) {
 	ucontext_t *uc = (ucontext_t *) ctx;
->>>>>>> upstream/master
 	greg_t *regs = uc->uc_mcontext.gregs;
 
 	unsigned long oldsp = regs[REG_RSP];
 	regs[REG_RSP] -= SYSV_REDST_SZ;
 	hctx_push(regs, regs[REG_RIP]);
-<<<<<<< HEAD
-	hctx_push(regs, sig);
-	hctx_push(regs, regs[REG_RBP]);
-	hctx_push(regs, oldsp);
-	hctx_push(regs, (unsigned long)bottom);
-	regs[REG_RIP] = (greg_t)tramptramp;
-}
-
-long sched_gettime(void)
-{
-=======
 	hctx_push(regs, oldsp);
 	hctx_push(regs, (unsigned long) (current->stack + sizeof(current->stack) - 16));
 	hctx_push(regs, (unsigned long) bottom);
@@ -325,19 +249,14 @@ long sched_gettime(void)
 }
 
 long sched_gettime(void) {
->>>>>>> upstream/master
 	int cnt1 = timer_cnt() / 1000;
 	int time1 = time;
 	int cnt2 = timer_cnt() / 1000;
 	int time2 = time;
 
-<<<<<<< HEAD
-	return (cnt1 <= cnt2) ? time1 + cnt2 : time2 + cnt2;
-=======
 	return (cnt1 <= cnt2) ?
 		time1 + cnt2 :
 		time2 + cnt2;
->>>>>>> upstream/master
 }
 
 void sched_run(enum policy policy)
@@ -346,8 +265,7 @@ void sched_run(enum policy policy)
 	policy_cmp = policies[policy];
 
 	struct task *t = pendingq;
-	while (t)
-	{
+	while (t) {
 		struct task *next = t->next;
 		policy_run(t);
 		t = next;
@@ -368,19 +286,6 @@ void sched_run(enum policy policy)
 	sigset_t none;
 	sigemptyset(&none);
 
-<<<<<<< HEAD
-	while (runq || waitq)
-	{
-		if (runq)
-		{
-			policy_run(current);
-			doswitch();
-		}
-		else
-		{
-			sigsuspend(&none);
-		}
-=======
 	while (runq || waitq) {
 		if (runq) {
 			policy_run(current);
@@ -389,13 +294,10 @@ void sched_run(enum policy policy)
 			sigsuspend(&none);
 		}
 
->>>>>>> upstream/master
 	}
 
 	irq_enable();
 }
-<<<<<<< HEAD
-=======
 
 static void sighnd(int sig, siginfo_t *info, void *ctx) {
 	ucontext_t *uc = (ucontext_t *) ctx;
@@ -438,4 +340,3 @@ int main(int argc, char *argv[]) {
 
 	shell(0, NULL);
 }
->>>>>>> upstream/master
