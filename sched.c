@@ -99,7 +99,7 @@ static int bitmap_alloc(unsigned long *bitmap, size_t size) {
 	int free_bit = find_free_bit(bitmap, size);
 	if (free_bit == -1) return -1;
 
-	bitmap[free_bit / sizeof(*bitmap)] |= free_bit % sizeof(*bitmap);
+	bitmap[free_bit / sizeof(*bitmap)] |= 1 << free_bit % sizeof(*bitmap);
 
 	return free_bit;
 }
