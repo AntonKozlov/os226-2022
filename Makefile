@@ -19,7 +19,7 @@ $(APPS) : %.app : %.app.c
 all : $(APPS)
 
 clean :
-	rm -f *.o main
+	rm -f *.o *.[od] main init.app
 
 -include $(patsubst %,%.d,$(OBJ))
 
