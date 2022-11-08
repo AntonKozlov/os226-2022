@@ -83,7 +83,21 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
-	return -1;
+	int free = -1;
+
+	for (int i = 0; i < size / sizeof(*bitmap); ++i) {
+		if (bitmap[i] != -1) {
+			free = i * (int) sizeof(*bitmap) +  ffsl((long) bitmap[i] + 1) - 1;
+			break;
+		}
+	}
+	if (free == -1) {
+		return -1;
+	}
+
+	bitmap[free / sizeof(*bitmap)] |= 1 << free % sizeof(*bitmap);
+
+	return free;
 }
 
 static void policy_run(struct task *t) {
@@ -108,6 +122,18 @@ static void vmctx_make(struct vmctx *vm, size_t stack_size) {
 }
 
 static void vmctx_apply(struct vmctx *vm) {
+	munmap(USER_START, USER_STACK_PAGES * PAGE_SIZE);
+	for (int i = 0; i < USER_PAGES; i++) {
+        if (vm->map[i] != -1) {
+            
+            mmap(USER_START + PAGE_SIZE * i,
+                 PAGE_SIZE,
+                 PROT_READ | PROT_WRITE,
+                 MAP_SHARED,
+                 memfd,
+                 vm->map[i] * PAGE_SIZE);
+        }
+    }
 }
 
 static void doswitch(void) {
