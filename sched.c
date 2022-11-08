@@ -83,6 +83,7 @@ void irq_enable(void) {
 }
 
 static int bitmap_alloc(unsigned long *bitmap, size_t size) {
+	
 	int free = -1;
 
 	for (int i = 0; i < size / sizeof(*bitmap); ++i) {
