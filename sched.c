@@ -46,6 +46,7 @@ struct task {
 
 	union {
 		struct ctx ctx;
+
 		struct {
 			int(*main)(int, char**);
 			int argc;
@@ -380,25 +381,69 @@ static void exectramp(void) {
 	doswitch();
 }
 
+static int elf2mprotect_mask(uint32_t elfmask) {
+	return (elfmask & PF_R ? PROT_READ : 0) |
+		   (elfmask & PF_W ? PROT_WRITE : 0) |
+		   (elfmask & PF_X ? PROT_EXEC : 0);
+}
+
 static int do_exec(const char *path, char *argv[]) {
-	int fd = open(path, O_RDONLY);
-	if (fd < 0) {
-		perror("open");
-		return 1;
-	}
 
-	void *rawelf = mmap(NULL, 128 * 1024, PROT_READ, MAP_PRIVATE, fd, 0);
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return 1;
+    }
 
-	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
-		printf("ELF header mismatch\n");
-		return 1;
-	}
+    size_t rawelf_len = 128 * 1024;
+    void *rawelf = mmap(NULL, rawelf_len, PROT_READ, MAP_PRIVATE, fd, 0);
 
-	// https://linux.die.net/man/5/elf
-	//
-	// Find Elf64_Ehdr -- at the very start
-	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
-	//   Find entry point (e_entry)
+    if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5) != 0) {
+        printf("ELF header mismatch\n");
+        return 1;
+    }
+
+    Elf64_Ehdr *elfhdr = rawelf;
+    if (elfhdr->e_type != ET_EXEC) {
+        perror("ELF is not executable\n");
+        return 1;
+    }
+
+    Elf64_Phdr *proghdr = (Elf64_Phdr *) ((void *) elfhdr + elfhdr->e_phoff);
+    void *brk_addr = USER_START;
+    for (int i = 0; i < elfhdr->e_phnum; i++) {
+        if (proghdr[i].p_type != PT_LOAD) {
+            continue;
+        }
+        if (proghdr[i].p_vaddr + proghdr[i].p_memsz > brk_addr) {
+            brk_addr = proghdr[i].p_vaddr + proghdr[i].p_memsz;
+        }
+    }
+
+    vmctx_brk(&current->vm, brk_addr);
+    vmctx_apply(&current->vm);
+
+    for (int i = 0; i < elfhdr->e_phnum; i++) {
+        if (proghdr[i].p_type != PT_LOAD) {
+            continue;
+        }
+        memcpy((void *) proghdr[i].p_vaddr,
+               rawelf + proghdr[i].p_offset,
+               proghdr[i].p_filesz);
+        if (vmprotect((void *) proghdr[i].p_offset,
+                      proghdr[i].p_memsz,
+                      elf2mprotect_mask(proghdr->p_flags))) {
+            perror("vmprotect failed\n");
+            return 1;
+        }
+    }
+
+    struct ctx dummy, new;
+    ctx_make(&new, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+    current->main = (int (*)(int, char **)) elfhdr->e_entry;
+    ctx_switch(&dummy, &new);
+    munmap(rawelf, rawelf_len);
+    return 0;
 }
 
 static void inittramp(void* arg) {
