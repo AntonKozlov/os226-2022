@@ -399,6 +399,53 @@ static int do_exec(const char *path, char *argv[]) {
 	// Find Elf64_Ehdr -- at the very start
 	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
 	//   Find entry point (e_entry)
+	
+	const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) rawelf;
+
+    	if (ehdr->e_type != ET_EXEC || !ehdr->e_phoff || !ehdr->e_phnum || !ehdr->e_entry ||
+        	ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
+        	fprintf(stderr, "Corrupted elf file\n");
+        	return 1;
+    	}
+
+    	const Elf64_Phdr *phdrs = (const Elf64_Phdr *) (rawelf + ehdr->e_phoff);
+
+    	void *max_brk = current->vm.brk * PAGE_SIZE + USER_START - PAGE_SIZE + 1;
+    	for (int i = 0; i < ehdr->e_phnum; i++) {
+        	const Elf64_Phdr *phdr = phdrs + i;
+        	if (phdr->p_type != PT_LOAD) continue;
+        	if ((void *) (phdr->p_vaddr + phdr->p_memsz) > max_brk) max_brk = (void *) (phdr->p_vaddr + phdr->p_memsz);
+    	}
+
+    	vmctx_brk(&current->vm, max_brk);
+    	vmctx_apply(&current->vm);
+
+    	for (int i = 0; i < ehdr->e_phnum; i++) {
+        	const Elf64_Phdr *phdr = phdrs + i;
+        	if (phdr->p_type != PT_LOAD) continue;
+
+        	memcpy((void *) phdr->p_vaddr, rawelf + phdr->p_offset, phdr->p_filesz);
+
+        	int prot = (phdr->p_flags & PF_X ? PROT_EXEC : 0) | (phdr->p_flags & PF_W ? PROT_WRITE : 0) |
+                   	(phdr->p_flags & PF_R ? PROT_READ : 0);
+        	if (vmprotect((void *) phdr->p_vaddr, phdr->p_memsz, prot)) {
+            		printf("vmprotect failed\n");
+            		return 1;
+        	}
+    	}
+
+    	struct ctx empty, new;
+    	ctx_make(&new, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+
+    	current->main = (void *) ehdr->e_entry;
+    	ctx_switch(&empty, &new);
+
+    	if (munmap(rawelf, 128 * 1024) == -1) {
+        	perror("munmap");
+        	return 1;
+    	}
+
+    	return 0;
 }
 
 static void inittramp(void* arg) {
