@@ -402,9 +402,9 @@ static int do_exec(const char *path, char *argv[]) {
 	
 	Elf64_Ehdr *e = rawelf;
 	
-	if (e->e_type != ET_EXEC || !e->e_phoff || !e->e_phnum || !e->e_entry || e->e_phentsize != sizeof(Elf64_Phdr) return 1
+	if (e->e_type != ET_EXEC || !e->e_phoff || !e->e_phnum || !e->e_entry || e->e_phentsize != sizeof(Elf64_Phdr)) return 1;
 	
-	Elf64_Phdr *ps = (Elf64_Phdr *) (rawelf + e->e_phoff)
+	Elf64_Phdr *ps = (Elf64_Phdr *) (rawelf + e->e_phoff);
 	
 	void *mb = current->vm.brk * (PAGE_SIZE - 1) + USER_START + 1;
 	for(int i = 0; i < e->e_phnum; i++) {
@@ -425,11 +425,11 @@ static int do_exec(const char *path, char *argv[]) {
 	}
 	
 	struct ctx o_ctx, n_ctx;
-    	ctx_make(&new, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
-    	current->main = (void *) ehdr->e_entry;
+    	ctx_make(&n_ctx, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+    	current->main = (void *) e->e_entry;
     	ctx_switch(&o_ctx, &n_ctx);
 
-    	munmap(rawelf, 128 * 1024)
+    	munmap(rawelf, 128 * 1024);
     	return 0;
 }
 
