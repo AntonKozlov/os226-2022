@@ -419,11 +419,11 @@ static int do_exec(const char *path, char *argv[]) {
 		vmctx_brk(&current->vm, (void *) (phdr.p_memsz + phdr.p_vaddr));
 		int prot = 0;
 		if (phdr.p_flags & PF_X) {
-			prot |= PROT_EXEC
-		};
+			prot |= PROT_EXEC;
+		}
 		if (phdr.p_flags & PF_W) {
-			prot |= PROT_WRITE
-		};
+			prot |= PROT_WRITE;
+		}
 		if (phdr.p_flags & PF_R) {
 			prot |= PROT_READ;
 		}
