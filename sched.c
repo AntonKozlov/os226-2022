@@ -31,6 +31,9 @@
 #define USER_START ((void*)IUSERSPACE_START)
 #define USER_STACK_PAGES 2
 
+#define uint = unsigned int
+#define ulong = unsigned long
+
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
@@ -380,6 +383,7 @@ static void exectramp(void) {
 	doswitch();
 }
 
+
 static int do_exec(const char *path, char *argv[]) {
 	int fd = open(path, O_RDONLY);
 	if (fd < 0) {
@@ -394,12 +398,72 @@ static int do_exec(const char *path, char *argv[]) {
 		return 1;
 	}
 
-	// https://linux.die.net/man/5/elf
-	//
-	// Find Elf64_Ehdr -- at the very start
-	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
-	//   Find entry point (e_entry)
+	Elf64_Ehdr ehdr;
+	if (sizeof(Elf64_Ehdr) != read(fd, &ehdr, sizeof(Elf64_Ehdr))) {
+		return 1;
+	}
+
+	if (0 == ehdr.e_phoff) {
+		return 1;
+	}
+	int p[USER_PAGES];
+	char c[PAGE_SIZE];
+	for (int i = 0; i < ehdr.e_phnum; i++) {
+		lseek(fd, ehdr.e_phoff + sizeof(Elf64_Phdr) * i, SEEK_SET);
+		Elf64_Phdr phdr;
+		read(fd, &phdr, sizeof(Elf64_Phdr));
+		if (PT_LOAD != phdr.p_type) {
+			continue;
+		}
+		uint old_brk = current->vm.brk;
+		vmctx_brk(&current->vm, (void *) (phdr.p_memsz + phdr.p_vaddr));
+		int prot = 0;
+		if (phdr.p_flags & PF_X) {
+			prot |= PROT_EXEC
+		};
+		if (phdr.p_flags & PF_W) {
+			prot |= PROT_WRITE
+		};
+		if (phdr.p_flags & PF_R) {
+			prot |= PROT_READ;
+		}
+		for (uint j = old_brk;
+		j < (current->vm.brk);
+		j++) {
+			p[j] = prot;
+		}
+		for (uint k = 0; k < (phdr.p_filesz / PAGE_SIZE); k++) {
+			lseek(fd, phdr.p_offset + PAGE_SIZE * k, SEEK_SET);
+			read(fd, c, PAGE_SIZE);
+			lseek(memfd,
+				  current->vm.map[(phdr.p_vaddr - (ulong) USER_START) / PAGE_SIZE + i] *PAGE_SIZE,
+					SEEK_SET);
+			write(memfd, c, PAGE_SIZE);
+		}
+		lseek(fd, phdr.p_offset + (phdr.p_filesz / PAGE_SIZE) * PAGE_SIZE, SEEK_SET);
+		read(fd, c, phdr.p_filesz % PAGE_SIZE);
+		lseek(memfd, PAGE_SIZE *
+					 current->vm.map[(phdr.p_vaddr + phdr.p_filesz - (ulong) USER_START) /
+		PAGE_SIZE], SEEK_SET);
+		write(memfd, c, phdr.p_filesz % PAGE_SIZE);
+	}
+	lseek(memfd, 0, SEEK_SET);
+	struct ctx dummy, new;
+	vmctx_apply(&current->vm);
+
+	for (uint i = 0;
+	i < (current->vm.brk);
+	i++) {
+		vmprotect(USER_START, PAGE_SIZE, p[i]);
+	}
+
+	current->main = ehdr.e_entry;
+	ctx_make(&new, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+	ctx_switch(&dummy, &new);
+	return 0;
 }
+
+
 
 static void inittramp(void* arg) {
 	char *args = { NULL };
