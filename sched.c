@@ -399,6 +399,38 @@ static int do_exec(const char *path, char *argv[]) {
 	// Find Elf64_Ehdr -- at the very start
 	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
 	//   Find entry point (e_entry)
+	
+	Elf64_Ehdr *e = rawelf;
+	
+	if (e->e_type != ET_EXEC || !e->e_phoff || !e->e_phnum || !e->e_entry || e->e_phentsize != sizeof(Elf64_Phdr) return 1
+	
+	Elf64_Phdr *ps = (Elf64_Phdr *) (rawelf + e->e_phoff)
+	
+	void *mb = current->vm.brk * (PAGE_SIZE - 1) + USER_START + 1;
+	for(int i = 0; i < e->e_phnum; i++) {
+		Elf64_Phdr *p = ps + i;
+		if (p->p_type == PT_LOAD || ((void *) (p->p_vaddr + p->p_memsz) > mb)) mb = (void *) (p->p_vaddr + p->p_memsz);
+	}
+	
+	vmctx_brk(&current->vm, mb);
+	vmctx_apply(&current->vm);
+	
+	for (int i = 0; i < e->e_phnum; i++) {
+		Elf64_Phdr *p = ps + i;
+		if (p->p_type == PT_LOAD){
+			memcpy((void *) p->p_vaddr, rawelf + p->p_offset, p->p_filesz);
+			int pr = (p->p_flags & PF_X ? PROT_EXEC : 0) | (p->p_flags & PF_W ? PROT_WRITE : 0) | (p->p_flags & PF_R ? PROT_READ : 0);
+			if (vmprotect((void *) p->p_vaddr, p->p_memsz, pr)) return 1;
+		}
+	}
+	
+	struct ctx o_ctx, n_ctx;
+    	ctx_make(&new, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+    	current->main = (void *) ehdr->e_entry;
+    	ctx_switch(&o_ctx, &n_ctx);
+
+    	munmap(rawelf, 128 * 1024)
+    	return 0;
 }
 
 static void inittramp(void* arg) {
