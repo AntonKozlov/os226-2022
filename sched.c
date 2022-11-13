@@ -31,8 +31,8 @@
 #define USER_START ((void*)IUSERSPACE_START)
 #define USER_STACK_PAGES 2
 
-#define uint = unsigned int
-#define ulong = unsigned long
+#define uint unsigned int
+#define ulong unsigned long
 
 extern int shell(int argc, char *argv[]);
 
