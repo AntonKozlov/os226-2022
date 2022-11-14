@@ -28,26 +28,30 @@
 #define PAGE_SIZE 4096
 
 #define USER_PAGES 1024
-#define USER_START ((void*)IUSERSPACE_START)
+#define USER_START ((void *)IUSERSPACE_START)
 #define USER_STACK_PAGES 2
 
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
 
-struct vmctx {
+struct vmctx
+{
 	unsigned map[USER_PAGES];
 	unsigned brk;
 };
 
-struct task {
+struct task
+{
 	char stack[8192];
 	struct vmctx vm;
 
-	union {
+	union
+	{
 		struct ctx ctx;
-		struct {
-			int(*main)(int, char**);
+		struct
+		{
+			int (*main)(int, char **);
 			int argc;
 			char **argv;
 		};
@@ -86,24 +90,30 @@ static int memfd = -1;
 #define LONG_BITS (sizeof(unsigned long) * CHAR_BIT)
 static unsigned long bitmap_pages[MEM_PAGES / LONG_BITS];
 
-void irq_disable(void) {
+void irq_disable(void)
+{
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
 }
 
-void irq_enable(void) {
+void irq_enable(void)
+{
 	sigprocmask(SIG_UNBLOCK, &irqs, NULL);
 }
 
-static int bitmap_alloc(unsigned long *bitmap, size_t size) {
+static int bitmap_alloc(unsigned long *bitmap, size_t size)
+{
 	unsigned n = size / sizeof(*bitmap);
 	unsigned long *w = NULL;
-	for (int i = 0; i < n; ++i) {
-		if (bitmap[i] != -1) {
+	for (int i = 0; i < n; ++i)
+	{
+		if (bitmap[i] != -1)
+		{
 			w = &bitmap[i];
 			break;
 		}
 	}
-	if (!w) {
+	if (!w)
+	{
 		fprintf(stderr, "cannot find free page\n");
 		abort();
 		return -1;
@@ -113,54 +123,66 @@ static int bitmap_alloc(unsigned long *bitmap, size_t size) {
 	return v + (w - bitmap) * LONG_BITS;
 }
 
-static void bitmap_free(unsigned long *bitmap, size_t size, unsigned v) {
+static void bitmap_free(unsigned long *bitmap, size_t size, unsigned v)
+{
 	bitmap[v / LONG_BITS] &= ~(1 << (v % LONG_BITS));
 }
 
-static void policy_run(struct task *t) {
+static void policy_run(struct task *t)
+{
 	struct task **c = &runq;
 
-	while (*c && (t == idle || policy_cmp(*c, t) <= 0)) {
+	while (*c && (t == idle || policy_cmp(*c, t) <= 0))
+	{
 		c = &(*c)->next;
 	}
 	t->next = *c;
 	*c = t;
 }
 
-static void vmctx_make(struct vmctx *vm, size_t stack_size) {
+static void vmctx_make(struct vmctx *vm, size_t stack_size)
+{
 	memset(vm->map, -1, sizeof(vm->map));
-	for (int i = 0; i < stack_size / PAGE_SIZE; ++i) {
+	for (int i = 0; i < stack_size / PAGE_SIZE; ++i)
+	{
 		int mempage = bitmap_alloc(bitmap_pages, sizeof(bitmap_pages));
-		if (mempage == -1) {
+		if (mempage == -1)
+		{
 			abort();
 		}
 		vm->map[USER_PAGES - 1 - i] = mempage;
 	}
 }
 
-static void vmctx_apply(struct vmctx *vm) {
+static void vmctx_apply(struct vmctx *vm)
+{
 	munmap(USER_START, USER_STACK_PAGES * PAGE_SIZE);
-	for (int i = 0; i < USER_PAGES; ++i) {
-		if (vm->map[i] == -1) {
+	for (int i = 0; i < USER_PAGES; ++i)
+	{
+		if (vm->map[i] == -1)
+		{
 			continue;
 		}
 		void *addr = mmap(USER_START + i * PAGE_SIZE,
-				PAGE_SIZE,
-				PROT_READ | PROT_WRITE | PROT_EXEC,
-				MAP_SHARED | MAP_FIXED,
-				memfd, vm->map[i] * PAGE_SIZE);
-		if (addr == MAP_FAILED) {
+						  PAGE_SIZE,
+						  PROT_READ | PROT_WRITE | PROT_EXEC,
+						  MAP_SHARED | MAP_FIXED,
+						  memfd, vm->map[i] * PAGE_SIZE);
+		if (addr == MAP_FAILED)
+		{
 			perror("mmap");
 			abort();
 		}
 
-		if (addr != USER_START + i * PAGE_SIZE) {
+		if (addr != USER_START + i * PAGE_SIZE)
+		{
 			abort();
 		}
 	}
 }
 
-static void doswitch(void) {
+static void doswitch(void)
+{
 	struct task *old = current;
 	current = runq;
 	runq = current->next;
@@ -170,14 +192,16 @@ static void doswitch(void) {
 	ctx_switch(&old->ctx, &current->ctx);
 }
 
-static void tasktramp(void) {
+static void tasktramp(void)
+{
 	irq_enable();
 	current->entry(current->as);
 	irq_disable();
 	doswitch();
 }
 
-static void tasktramp0(void) {
+static void tasktramp0(void)
+{
 	struct ctx dummy, new;
 	vmctx_apply(&current->vm);
 	ctx_make(&new, tasktramp, USER_START + USER_PAGES * PAGE_SIZE);
@@ -185,8 +209,9 @@ static void tasktramp0(void) {
 }
 
 void sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
+			   void *aspace,
+			   int priority)
+{
 
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
@@ -197,18 +222,23 @@ void sched_new(void (*entrypoint)(void *aspace),
 	vmctx_make(&t->vm, 4 * PAGE_SIZE);
 	ctx_make(&t->ctx, tasktramp0, t->stack + sizeof(t->stack));
 
-	if (!lastpending) {
+	if (!lastpending)
+	{
 		lastpending = t;
 		pendingq = t;
-	} else {
+	}
+	else
+	{
 		lastpending->next = t;
 		lastpending = t;
 	}
 }
 
-void sched_sleep(unsigned ms) {
+void sched_sleep(unsigned ms)
+{
 
-	if (!ms) {
+	if (!ms)
+	{
 		irq_disable();
 		policy_run(current);
 		doswitch();
@@ -219,10 +249,12 @@ void sched_sleep(unsigned ms) {
 	current->waketime = sched_gettime() + ms;
 
 	int curtime;
-	while ((curtime = sched_gettime()) < current->waketime) {
+	while ((curtime = sched_gettime()) < current->waketime)
+	{
 		irq_disable();
 		struct task **c = &waitq;
-		while (*c && (*c)->waketime < current->waketime) {
+		while (*c && (*c)->waketime < current->waketime)
+		{
 			c = &(*c)->next;
 		}
 		current->next = *c;
@@ -233,32 +265,37 @@ void sched_sleep(unsigned ms) {
 	}
 }
 
-static int fifo_cmp(struct task *t1, struct task *t2) {
+static int fifo_cmp(struct task *t1, struct task *t2)
+{
 	return -1;
 }
 
-static int prio_cmp(struct task *t1, struct task *t2) {
+static int prio_cmp(struct task *t1, struct task *t2)
+{
 	return t2->priority - t1->priority;
 }
 
-static void hctx_push(greg_t *regs, unsigned long val) {
+static void hctx_push(greg_t *regs, unsigned long val)
+{
 	regs[REG_RSP] -= sizeof(unsigned long);
-	*(unsigned long *) regs[REG_RSP] = val;
+	*(unsigned long *)regs[REG_RSP] = val;
 }
 
-
-static void bottom(void) {
+static void bottom(void)
+{
 	irq_disable();
 
 	time += TICK_PERIOD;
 
-	while (waitq && waitq->waketime <= sched_gettime()) {
+	while (waitq && waitq->waketime <= sched_gettime())
+	{
 		struct task *t = waitq;
 		waitq = waitq->next;
 		policy_run(t);
 	}
 
-	if (TICK_PERIOD <= sched_gettime() - current_start) {
+	if (TICK_PERIOD <= sched_gettime() - current_start)
+	{
 		policy_run(current);
 		doswitch();
 	}
@@ -266,36 +303,38 @@ static void bottom(void) {
 	irq_enable();
 }
 
-static void top(int sig, siginfo_t *info, void *ctx) {
-	ucontext_t *uc = (ucontext_t *) ctx;
+static void top(int sig, siginfo_t *info, void *ctx)
+{
+	ucontext_t *uc = (ucontext_t *)ctx;
 	greg_t *regs = uc->uc_mcontext.gregs;
 
 	unsigned long oldsp = regs[REG_RSP];
 	regs[REG_RSP] -= SYSV_REDST_SZ;
 	hctx_push(regs, regs[REG_RIP]);
 	hctx_push(regs, oldsp);
-	hctx_push(regs, (unsigned long) (current->stack + sizeof(current->stack) - 16));
-	hctx_push(regs, (unsigned long) bottom);
-	regs[REG_RIP] = (greg_t) tramptramp;
+	hctx_push(regs, (unsigned long)(current->stack + sizeof(current->stack) - 16));
+	hctx_push(regs, (unsigned long)bottom);
+	regs[REG_RIP] = (greg_t)tramptramp;
 }
 
-long sched_gettime(void) {
+long sched_gettime(void)
+{
 	int cnt1 = timer_cnt() / 1000;
 	int time1 = time;
 	int cnt2 = timer_cnt() / 1000;
 	int time2 = time;
 
-	return (cnt1 <= cnt2) ?
-		time1 + cnt2 :
-		time2 + cnt2;
+	return (cnt1 <= cnt2) ? time1 + cnt2 : time2 + cnt2;
 }
 
-void sched_run(enum policy policy) {
-	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp };
+void sched_run(enum policy policy)
+{
+	int (*policies[])(struct task * t1, struct task * t2) = {fifo_cmp, prio_cmp};
 	policy_cmp = policies[policy];
 
 	struct task *t = pendingq;
-	while (t) {
+	while (t)
+	{
 		struct task *next = t->next;
 		policy_run(t);
 		t = next;
@@ -316,46 +355,55 @@ void sched_run(enum policy policy) {
 	sigset_t none;
 	sigemptyset(&none);
 
-	while (runq || waitq) {
-		if (runq) {
+	while (runq || waitq)
+	{
+		if (runq)
+		{
 			policy_run(current);
 			doswitch();
-		} else {
+		}
+		else
+		{
 			sigsuspend(&none);
 		}
-
 	}
 
 	irq_enable();
 }
 
-static void sighnd(int sig, siginfo_t *info, void *ctx) {
-	ucontext_t *uc = (ucontext_t *) ctx;
+static void sighnd(int sig, siginfo_t *info, void *ctx)
+{
+	ucontext_t *uc = (ucontext_t *)ctx;
 	greg_t *regs = uc->uc_mcontext.gregs;
 
-	uint16_t insn = *(uint16_t*)regs[REG_RIP];
-	if (insn != 0x81cd) {
+	uint16_t insn = *(uint16_t *)regs[REG_RIP];
+	if (insn != 0x81cd)
+	{
 		abort();
 	}
 
 	regs[REG_RAX] = syscall_do(regs[REG_RAX], regs[REG_RBX],
-			regs[REG_RCX], regs[REG_RDX],
-			regs[REG_RSI], (void *) regs[REG_RDI]);
+							   regs[REG_RCX], regs[REG_RDX],
+							   regs[REG_RSI], (void *)regs[REG_RDI]);
 
 	regs[REG_RIP] += 2;
 }
 
-static int vmctx_brk(struct vmctx *vm, void *addr) {
+static int vmctx_brk(struct vmctx *vm, void *addr)
+{
 	int newbrk = (addr - USER_START + PAGE_SIZE - 1) / PAGE_SIZE;
-	if ((newbrk < 0) || (USER_PAGES <= newbrk)) {
+	if ((newbrk < 0) || (USER_PAGES <= newbrk))
+	{
 		fprintf(stderr, "Out-of-mem\n");
 		abort();
 	}
 
-	for (unsigned i = vm->brk; i < newbrk; ++i) {
+	for (unsigned i = vm->brk; i < newbrk; ++i)
+	{
 		vm->map[i] = bitmap_alloc(bitmap_pages, sizeof(bitmap_pages));
 	}
-	for (unsigned i = newbrk; i < vm->brk; ++i) {
+	for (unsigned i = newbrk; i < vm->brk; ++i)
+	{
 		bitmap_free(bitmap_pages, sizeof(bitmap_pages), vm->map[i]);
 	}
 	vm->brk = newbrk;
@@ -363,7 +411,8 @@ static int vmctx_brk(struct vmctx *vm, void *addr) {
 	return 0;
 }
 
-int vmprotect(void *start, unsigned len, int prot) {
+int vmprotect(void *start, unsigned len, int prot)
+{
 #if 0
 	if (mprotect(start, len, prot)) {
 		perror("mprotect");
@@ -373,23 +422,30 @@ int vmprotect(void *start, unsigned len, int prot) {
 	return 0;
 }
 
-static void exectramp(void) {
+static void exectramp(void)
+{
 	irq_enable();
 	current->main(current->argc, current->argv);
 	irq_disable();
 	doswitch();
 }
 
-static int do_exec(const char *path, char *argv[]) {
+static int do_exec(const char *path, char *argv[])
+{
 	int fd = open(path, O_RDONLY);
-	if (fd < 0) {
+	if (fd < 0)
+	{
 		perror("open");
 		return 1;
 	}
 
 	void *rawelf = mmap(NULL, 128 * 1024, PROT_READ, MAP_PRIVATE, fd, 0);
 
-	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
+	if (strncmp(rawelf, "\x7f"
+						"ELF"
+						"\x2",
+				5))
+	{
 		printf("ELF header mismatch\n");
 		return 1;
 	}
@@ -399,14 +455,93 @@ static int do_exec(const char *path, char *argv[]) {
 	// Find Elf64_Ehdr -- at the very start
 	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
 	//   Find entry point (e_entry)
+
+	const Elf64_Ehdr *e_hdr = rawelf;
+
+	if (e_hdr->e_type != ET_EXEC)
+	{
+		printf("not an executable file\n");
+		return 1;
+	}
+
+	if (!e_hdr->e_phoff)
+	{
+		printf("wrong program header offset\n");
+		return 1;
+	}
+
+	if (!e_hdr->e_entry)
+	{
+		printf("no entry point\n");
+		return 1;
+	}
+
+	if (e_hdr->e_phentsize != sizeof(Elf64_Phdr))
+	{
+		printf("wrong bytes of one entry\n");
+		return 1;
+	}
+
+	const Elf64_Phdr *p_hdrs = rawelf + e_hdr->e_phoff;
+
+	void *max_brk = (current->vm.brk * PAGE_SIZE) + USER_START - PAGE_SIZE + 1;
+
+	for (int i = 0; i < e_hdr->e_phnum; i++)
+	{
+		const Elf64_Phdr *p_hdr = p_hdrs + i;
+		if (p_hdr->p_type == PT_LOAD)
+		{
+			void *brk = (void *)(p_hdr->p_vaddr + p_hdr->p_memsz);
+			if (brk > max_brk)
+				max_brk = brk;
+		}
+	}
+
+	vmctx_brk(&current->vm, max_brk);
+	vmctx_apply(&current->vm);
+
+	for (int i = 0; i < e_hdr->e_phnum; i++)
+	{
+		const Elf64_Phdr *p_hdr = p_hdrs + i;
+		if (p_hdr->p_type == PT_LOAD)
+		{
+			memcpy((void *)p_hdr->p_vaddr, rawelf + p_hdr->p_offset, p_hdr->p_filesz);
+
+			if (vmprotect(
+					(void *)p_hdr->p_vaddr,
+					p_hdr->p_memsz,
+					(p_hdr->p_flags & PF_X ? PROT_EXEC : 0) |
+						(p_hdr->p_flags & PF_W ? PROT_WRITE : 0) |
+						(p_hdr->p_flags & PF_R ? PROT_READ : 0)))
+			{
+				printf("vmprotect failed\n");
+				return 1;
+			}
+		}
+	}
+
+	struct ctx old, new;
+	ctx_make(&new, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+	current->main = (void *)e_hdr->e_entry;
+	ctx_switch(&old, &new);
+
+	if (munmap(rawelf, 128 * 1024) == -1)
+	{
+		perror("munmap failed");
+		return 1;
+	}
+
+	return 0;
 }
 
-static void inittramp(void* arg) {
-	char *args = { NULL };
+static void inittramp(void *arg)
+{
+	char *args = {NULL};
 	do_exec(arg, &args);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
 	char *initpath = argv[1];
 
 	struct sigaction act = {
@@ -415,18 +550,21 @@ int main(int argc, char *argv[]) {
 	};
 	sigemptyset(&act.sa_mask);
 
-	if (-1 == sigaction(SIGSEGV, &act, NULL)) {
+	if (-1 == sigaction(SIGSEGV, &act, NULL))
+	{
 		perror("signal set failed");
 		return 1;
 	}
 
 	memfd = memfd_create("mem", 0);
-	if (memfd < 0) {
+	if (memfd < 0)
+	{
 		perror("memfd_create");
 		return 1;
 	}
 
-	if (ftruncate(memfd, PAGE_SIZE * MEM_PAGES) < 0) {
+	if (ftruncate(memfd, PAGE_SIZE * MEM_PAGES) < 0)
+	{
 		perror("ftrucate");
 		return 1;
 	}
