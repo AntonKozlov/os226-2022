@@ -46,14 +46,17 @@ struct task {
 
 	union {
 		struct ctx ctx;
+
 		struct {
-			int(*main)(int, char**);
+			int (*main)(int, char **);
+
 			int argc;
 			char **argv;
 		};
 	};
 
 	void (*entry)(void *as);
+
 	void *as;
 	int priority;
 
@@ -145,10 +148,10 @@ static void vmctx_apply(struct vmctx *vm) {
 			continue;
 		}
 		void *addr = mmap(USER_START + i * PAGE_SIZE,
-				PAGE_SIZE,
-				PROT_READ | PROT_WRITE | PROT_EXEC,
-				MAP_SHARED | MAP_FIXED,
-				memfd, vm->map[i] * PAGE_SIZE);
+		                  PAGE_SIZE,
+		                  PROT_READ | PROT_WRITE | PROT_EXEC,
+		                  MAP_SHARED | MAP_FIXED,
+		                  memfd, vm->map[i] * PAGE_SIZE);
 		if (addr == MAP_FAILED) {
 			perror("mmap");
 			abort();
@@ -184,9 +187,7 @@ static void tasktramp0(void) {
 	ctx_switch(&dummy, &new);
 }
 
-void sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
+void sched_new(void (*entrypoint)(void *aspace), void *aspace, int priority) {
 
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
@@ -246,7 +247,6 @@ static void hctx_push(greg_t *regs, unsigned long val) {
 	*(unsigned long *) regs[REG_RSP] = val;
 }
 
-
 static void bottom(void) {
 	irq_disable();
 
@@ -285,13 +285,11 @@ long sched_gettime(void) {
 	int cnt2 = timer_cnt() / 1000;
 	int time2 = time;
 
-	return (cnt1 <= cnt2) ?
-		time1 + cnt2 :
-		time2 + cnt2;
+	return (cnt1 <= cnt2) ? time1 + cnt2 : time2 + cnt2;
 }
 
 void sched_run(enum policy policy) {
-	int (*policies[])(struct task *t1, struct task *t2) = { fifo_cmp, prio_cmp };
+	int (*policies[])(struct task *t1, struct task *t2) = {fifo_cmp, prio_cmp};
 	policy_cmp = policies[policy];
 
 	struct task *t = pendingq;
@@ -333,14 +331,14 @@ static void sighnd(int sig, siginfo_t *info, void *ctx) {
 	ucontext_t *uc = (ucontext_t *) ctx;
 	greg_t *regs = uc->uc_mcontext.gregs;
 
-	uint16_t insn = *(uint16_t*)regs[REG_RIP];
+	uint16_t insn = *(uint16_t *) regs[REG_RIP];
 	if (insn != 0x81cd) {
 		abort();
 	}
 
 	regs[REG_RAX] = syscall_do(regs[REG_RAX], regs[REG_RBX],
-			regs[REG_RCX], regs[REG_RDX],
-			regs[REG_RSI], (void *) regs[REG_RDI]);
+	                           regs[REG_RCX], regs[REG_RDX],
+	                           regs[REG_RSI], (void *) regs[REG_RDI]);
 
 	regs[REG_RIP] += 2;
 }
@@ -364,12 +362,10 @@ static int vmctx_brk(struct vmctx *vm, void *addr) {
 }
 
 int vmprotect(void *start, unsigned len, int prot) {
-#if 0
 	if (mprotect(start, len, prot)) {
 		perror("mprotect");
 		return -1;
 	}
-#endif
 	return 0;
 }
 
@@ -378,6 +374,14 @@ static void exectramp(void) {
 	current->main(current->argc, current->argv);
 	irq_disable();
 	doswitch();
+}
+
+static int calc_prot(Elf64_Word p_flags) {
+	int prot = 0;
+	if (p_flags & PF_R) prot |= PROT_READ;
+	if (p_flags & PF_W) prot |= PROT_WRITE;
+	if (p_flags & PF_X) prot |= PROT_EXEC;
+	return prot;
 }
 
 static int do_exec(const char *path, char *argv[]) {
@@ -399,10 +403,60 @@ static int do_exec(const char *path, char *argv[]) {
 	// Find Elf64_Ehdr -- at the very start
 	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
 	//   Find entry point (e_entry)
+
+	const Elf64_Ehdr *e_hdr = rawelf;
+	if (e_hdr->e_type != ET_EXEC) {
+		printf("ELF is not an executable\n");
+		return 1;
+	}
+
+	if (e_hdr->e_phoff == 0) {
+		printf("ELF has wrong program header offset\n");
+		return 1;
+	}
+
+	const Elf64_Phdr *p_hdrs = rawelf + e_hdr->e_phoff;
+
+	void *max_brk = current->vm.brk * PAGE_SIZE + USER_START - PAGE_SIZE + 1;
+
+	for (int i = 0; i < e_hdr->e_phnum; i++) {
+		const Elf64_Phdr *p_hdr = p_hdrs + i;
+		if (p_hdr->p_type == PT_LOAD) {
+			void *brk = (void *) (p_hdr->p_vaddr + p_hdr->p_memsz);
+			if (brk > max_brk) max_brk = brk;
+		}
+	}
+
+	vmctx_brk(&current->vm, max_brk);
+	vmctx_apply(&current->vm);
+
+	for (int i = 0; i < e_hdr->e_phnum; i++) {
+		const Elf64_Phdr *p_hdr = p_hdrs + i;
+		if (p_hdr->p_type == PT_LOAD) {
+			memcpy((void *) p_hdr->p_vaddr, rawelf + p_hdr->p_offset, p_hdr->p_filesz);
+
+			if (vmprotect((void *) p_hdr->p_vaddr, p_hdr->p_memsz, calc_prot(p_hdr->p_flags))) {
+				printf("vmprotect failed\n");
+				return 1;
+			}
+		}
+	}
+
+	struct ctx old_ctx, new_ctx;
+	ctx_make(&new_ctx, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+	current->main = (void *) e_hdr->e_entry;
+	ctx_switch(&old_ctx, &new_ctx);
+
+	if (munmap(rawelf, 128 * 1024) == -1) {
+		perror("munmap failed");
+		return 1;
+	}
+
+	return 0;
 }
 
-static void inittramp(void* arg) {
-	char *args = { NULL };
+static void inittramp(void *arg) {
+	char *args = {NULL};
 	do_exec(arg, &args);
 }
 
