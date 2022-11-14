@@ -394,11 +394,44 @@ static int do_exec(const char *path, char *argv[]) {
 		return 1;
 	}
 
-	// https://linux.die.net/man/5/elf
-	//
-	// Find Elf64_Ehdr -- at the very start
-	//   Elf64_Phdr -- find one with PT_LOAD, load it for execution
-	//   Find entry point (e_entry)
+	const Elf64_Ehdr *eheader = (const Elf64_Ehdr *) rawelf;
+
+    	if (eheader->e_type != ET_EXEC || !eheader->e_phoff || !eheader->e_phnum || !eheader->e_entry || eheader->e_phentsize != sizeof(Elf64_Phdr))
+			return 1;
+
+    	const Elf64_Phdr *pheaders = (const Elf64_Phdr *) (rawelf + eheader->e_phoff);
+
+    	void *max_brk = current->vm.brk * (PAGE_SIZE - 1) + USER_START + 1;
+    	for (int i = 0; i < eheader->e_phnum; i++) {
+        	const Elf64_Phdr *pheader = pheaders + i;
+        	if (pheader->p_type != PT_LOAD) 
+				continue;
+        	if ((void *) (pheader->p_vaddr + pheader->p_memsz) > max_brk) 
+				max_brk = (void *) (pheader->p_vaddr + pheader->p_memsz);
+    	}
+    	vmctx_brk(&current->vm, max_brk);
+    	vmctx_apply(&current->vm);
+
+    	for (int i = 0; i < eheader->e_phnum; i++) {
+        	const Elf64_Phdr *pheader = pheaders + i;
+        	if (pheader->p_type != PT_LOAD) continue;
+
+        	memcpy((void *) pheader->p_vaddr, rawelf + pheader->p_offset, pheader->p_filesz);
+
+        	int prot = (pheader->p_flags & PF_X ? PROT_EXEC : 0) | (pheader->p_flags & PF_W ? PROT_WRITE : 0) |
+                   	(pheader->p_flags & PF_R ? PROT_READ : 0);
+        	if (vmprotect((void *) pheader->p_vaddr, pheader->p_memsz, prot))
+            	return 1;
+    	}
+
+    	struct ctx octx, nctx;
+    	ctx_make(&nctx, exectramp, USER_START + USER_PAGES * PAGE_SIZE);
+    	current->main = (void *) eheader->e_entry;
+    	ctx_switch(&octx, &nctx);
+    
+    	munmap(rawelf, 128 * 1024);
+
+    	return 0;
 }
 
 static void inittramp(void* arg) {
