@@ -1,7 +1,7 @@
 
 .text
 .global tramptramp
-.global exit
+.global exittramp
 
 tramptramp:
 	pushfq
@@ -27,9 +27,9 @@ tramptramp:
 	mov 17*8(%rbx), %rsp
 	call *16*8(%rbx)
 	mov %rbx, %rsp
-	jmp exit
+	jmp exittramp
 
-exit:
+exittramp:
 	pop %rbp
 	pop %r15
 	pop %r14
