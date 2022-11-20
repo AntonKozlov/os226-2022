@@ -402,7 +402,17 @@ static void exectramp(void) {
 
 static int do_exec(const char *path, char *argv[]) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	
+	unsigned long i = 0;
+	while ('\0' != path[i] && i < sizeof(elfpath) - 5) {
+		elfpath[i++] = path[i];
+	}
+	elfpath[i++] = '.';
+	elfpath[i++] = 'a';
+	elfpath[i++] = 'p';
+	elfpath[i++] = 'p';
+	elfpath[i++] = '\0';
+
 	int fd = open(elfpath, O_RDONLY);
 	if (fd < 0) {
 		perror("open");
