@@ -23,7 +23,7 @@ tramptramp:
 	mov %rsp, %rdi
     mov 18*8(%rsp), %rsi
     mov 17*8(%rsp), %rsp
-    call *16*8(%rsi)
+    call *16*8(%rdi)
 	mov %rax, %rsp
 	jmp exittramp
 
