@@ -22,7 +22,7 @@ tramptramp:
 	push %rbp
 
 	mov %rsp, %rbx
-	mov %rsp, %rbi
+	mov %rsp, %rdi
 	mov 18*8(%rbx), %rsi
 	mov 17*8(%rbx), %rsp
 	call *16*8(%rbx)
