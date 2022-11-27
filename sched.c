@@ -35,6 +35,7 @@
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
+
 extern void exittramp(void);
 
 struct vmctx {
@@ -49,14 +50,17 @@ struct task {
 
 	union {
 		struct ctx ctx;
+
 		struct {
-			int(*main)(int, char**);
+			int (*main)(int, char **);
+
 			int argc;
 			char **argv;
 		};
 	};
 
 	void (*entry)(void *as);
+
 	void *as;
 	int priority;
 
@@ -92,6 +96,7 @@ struct savedctx {
 };
 
 static void syscallbottom(unsigned long sp);
+
 static int do_fork(unsigned long sp);
 
 static int time;
@@ -176,10 +181,10 @@ static void vmctx_apply(struct vmctx *vm) {
 			continue;
 		}
 		void *addr = mmap(USER_START + i * PAGE_SIZE,
-				PAGE_SIZE,
-				PROT_READ | PROT_WRITE | PROT_EXEC,
-				MAP_SHARED | MAP_FIXED,
-				memfd, vm->map[i] * PAGE_SIZE);
+						  PAGE_SIZE,
+						  PROT_READ | PROT_WRITE | PROT_EXEC,
+						  MAP_SHARED | MAP_FIXED,
+						  memfd, vm->map[i] * PAGE_SIZE);
 		if (addr == MAP_FAILED) {
 			perror("mmap");
 			abort();
@@ -209,8 +214,8 @@ static void tasktramp(void) {
 }
 
 struct task *sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
+					   void *aspace,
+					   int priority) {
 
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
@@ -312,8 +317,8 @@ long sched_gettime(void) {
 	int time2 = time;
 
 	return (cnt1 <= cnt2) ?
-		time1 + cnt2 :
-		time2 + cnt2;
+		   time1 + cnt2 :
+		   time2 + cnt2;
 }
 
 void sched_run(void) {
@@ -347,9 +352,9 @@ void sched_run(void) {
 }
 
 static void syscallbottom(unsigned long sp) {
-	struct savedctx *sc = (struct savedctx *)sp;
+	struct savedctx *sc = (struct savedctx *) sp;
 
-	uint16_t insn = *(uint16_t*)sc->rip;
+	uint16_t insn = *(uint16_t *) sc->rip;
 	if (insn != 0x81cd) {
 		abort();
 	}
@@ -360,8 +365,8 @@ static void syscallbottom(unsigned long sp) {
 		sc->rax = do_fork(sp);
 	} else {
 		sc->rax = syscall_do(sc->rax, sc->rbx,
-				sc->rcx, sc->rdx,
-				sc->rsi, (void *) sc->rdi);
+							 sc->rcx, sc->rdx,
+							 sc->rsi, (void *) sc->rdi);
 	}
 }
 
@@ -401,7 +406,10 @@ static void exectramp(void) {
 }
 
 static int do_exec(const char *path, char *argv[]) {
-	char elfpath[32];
+	char elfpath[32] = {0};
+	strcpy(elfpath, path);
+
+	strcat(elfpath, ".app");
 	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
 	int fd = open(elfpath, O_RDONLY);
 	if (fd < 0) {
@@ -424,9 +432,9 @@ static int do_exec(const char *path, char *argv[]) {
 
 	const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) rawelf;
 	if (!ehdr->e_phoff ||
-			!ehdr->e_phnum ||
-			!ehdr->e_entry ||
-			ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
+		!ehdr->e_phnum ||
+		!ehdr->e_entry ||
+		ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
 		printf("bad ehdr\n");
 		return 1;
 	}
@@ -442,14 +450,14 @@ static int do_exec(const char *path, char *argv[]) {
 			printf("bad section\n");
 			return 1;
 		}
-		void *phend = (void*)(ph->p_vaddr + ph->p_memsz);
+		void *phend = (void *) (ph->p_vaddr + ph->p_memsz);
 		if (maxaddr < phend) {
 			maxaddr = phend;
 		}
 	}
 
 	char **copyargv = USER_START + (USER_PAGES - 1) * PAGE_SIZE;
-	char *copybuf = (char*)(copyargv + 32);
+	char *copybuf = (char *) (copyargv + 32);
 	char *const *arg = argv;
 	char **copyarg = copyargv;
 	while (*arg) {
@@ -475,11 +483,11 @@ static int do_exec(const char *path, char *argv[]) {
 		if (ph->p_type != PT_LOAD) {
 			continue;
 		}
-		memcpy((void*)ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
-		int prot = (ph->p_flags & PF_X ? PROT_EXEC  : 0) |
-			(ph->p_flags & PF_W ? PROT_WRITE : 0) |
-			(ph->p_flags & PF_R ? PROT_READ  : 0);
-		if (vmprotect((void*)ph->p_vaddr, ph->p_memsz, prot)) {
+		memcpy((void *) ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
+		int prot = (ph->p_flags & PF_X ? PROT_EXEC : 0) |
+				   (ph->p_flags & PF_W ? PROT_WRITE : 0) |
+				   (ph->p_flags & PF_R ? PROT_READ : 0);
+		if (vmprotect((void *) ph->p_vaddr, ph->p_memsz, prot)) {
 			printf("vmprotect section failed\n");
 			return 1;
 		}
@@ -487,21 +495,21 @@ static int do_exec(const char *path, char *argv[]) {
 
 	struct ctx dummy;
 	struct ctx new;
-	ctx_make(&new, exectramp, (char*)copyargv);
+	ctx_make(&new, exectramp, (char *) copyargv);
 
 	irq_disable();
-	current->main = (void*)ehdr->e_entry;
+	current->main = (void *) ehdr->e_entry;
 	current->argv = copyargv;
 	current->argc = copyarg - copyargv;
 	ctx_switch(&dummy, &new);
 }
 
-static void inittramp(void* arg) {
-	char *args = { NULL };
+static void inittramp(void *arg) {
+	char *args = {NULL};
 	do_exec("init", &args);
 }
 
-static void forktramp(void* arg) {
+static void forktramp(void *arg) {
 	vmctx_apply(&current->vm);
 
 	struct ctx dummy;
@@ -511,32 +519,32 @@ static void forktramp(void* arg) {
 }
 
 static void copyrange(struct vmctx *vm, unsigned from, unsigned to) {
-        for (unsigned i = from; i < to; ++i) {
+	for (unsigned i = from; i < to; ++i) {
 		vm->map[i] = bitmap_alloc(bitmap_pages, sizeof(bitmap_pages));
 		if (vm->map[i] == -1) {
 			abort();
 		}
-                if (-1 == pwrite(memfd,
-                                USER_START + i * PAGE_SIZE,
-                                PAGE_SIZE,
-				vm->map[i] * PAGE_SIZE)) {
-                        perror("pwrite");
-                        abort();
-                }
-        }
+		if (-1 == pwrite(memfd,
+						 USER_START + i * PAGE_SIZE,
+						 PAGE_SIZE,
+						 vm->map[i] * PAGE_SIZE)) {
+			perror("pwrite");
+			abort();
+		}
+	}
 }
 
 static void vmctx_copy(struct vmctx *dst, struct vmctx *src) {
-        dst->brk = src->brk;
-        dst->stack = src->stack;
-        copyrange(dst, 0, src->brk);
-        copyrange(dst, src->stack, USER_PAGES - 1);
+	dst->brk = src->brk;
+	dst->stack = src->stack;
+	copyrange(dst, 0, src->brk);
+	copyrange(dst, src->stack, USER_PAGES - 1);
 }
 
 static int do_fork(unsigned long sp) {
-	struct task *t = sched_new(forktramp, (void*)sp, 0);
-        vmctx_copy(&t->vm, &current->vm);
-        policy_run(t);
+	struct task *t = sched_new(forktramp, (void *) sp, 0);
+	vmctx_copy(&t->vm, &current->vm);
+	policy_run(t);
 }
 
 int sys_exit(int code) {
@@ -545,8 +553,8 @@ int sys_exit(int code) {
 
 int main(int argc, char *argv[]) {
 	struct sigaction act = {
-		.sa_sigaction = top,
-		.sa_flags = SA_RESTART,
+			.sa_sigaction = top,
+			.sa_flags = SA_RESTART,
 	};
 	sigemptyset(&act.sa_mask);
 
