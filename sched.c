@@ -35,7 +35,6 @@
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
-
 extern void exittramp(void);
 
 struct vmctx {
@@ -50,17 +49,14 @@ struct task {
 
 	union {
 		struct ctx ctx;
-
 		struct {
-			int (*main)(int, char **);
-
+			int(*main)(int, char**);
 			int argc;
 			char **argv;
 		};
 	};
 
 	void (*entry)(void *as);
-
 	void *as;
 	int priority;
 
@@ -96,7 +92,6 @@ struct savedctx {
 };
 
 static void syscallbottom(unsigned long sp);
-
 static int do_fork(unsigned long sp);
 
 static int time;
@@ -352,9 +347,9 @@ void sched_run(void) {
 }
 
 static void syscallbottom(unsigned long sp) {
-	struct savedctx *sc = (struct savedctx *) sp;
+	struct savedctx *sc = (struct savedctx *)sp;
 
-	uint16_t insn = *(uint16_t *) sc->rip;
+	uint16_t insn = *(uint16_t*)sc->rip;
 	if (insn != 0x81cd) {
 		abort();
 	}
@@ -408,9 +403,7 @@ static void exectramp(void) {
 static int do_exec(const char *path, char *argv[]) {
 	char elfpath[32] = {0};
 	strcpy(elfpath, path);
-
 	strcat(elfpath, ".app");
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
 	int fd = open(elfpath, O_RDONLY);
 	if (fd < 0) {
 		perror("open");
@@ -450,14 +443,14 @@ static int do_exec(const char *path, char *argv[]) {
 			printf("bad section\n");
 			return 1;
 		}
-		void *phend = (void *) (ph->p_vaddr + ph->p_memsz);
+		void *phend = (void*)(ph->p_vaddr + ph->p_memsz);
 		if (maxaddr < phend) {
 			maxaddr = phend;
 		}
 	}
 
 	char **copyargv = USER_START + (USER_PAGES - 1) * PAGE_SIZE;
-	char *copybuf = (char *) (copyargv + 32);
+	char *copybuf = (char*)(copyargv + 32);
 	char *const *arg = argv;
 	char **copyarg = copyargv;
 	while (*arg) {
@@ -483,11 +476,11 @@ static int do_exec(const char *path, char *argv[]) {
 		if (ph->p_type != PT_LOAD) {
 			continue;
 		}
-		memcpy((void *) ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
-		int prot = (ph->p_flags & PF_X ? PROT_EXEC : 0) |
+		memcpy((void*)ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
+		int prot = (ph->p_flags & PF_X ? PROT_EXEC  : 0) |
 				   (ph->p_flags & PF_W ? PROT_WRITE : 0) |
-				   (ph->p_flags & PF_R ? PROT_READ : 0);
-		if (vmprotect((void *) ph->p_vaddr, ph->p_memsz, prot)) {
+				   (ph->p_flags & PF_R ? PROT_READ  : 0);
+		if (vmprotect((void*)ph->p_vaddr, ph->p_memsz, prot)) {
 			printf("vmprotect section failed\n");
 			return 1;
 		}
@@ -495,21 +488,21 @@ static int do_exec(const char *path, char *argv[]) {
 
 	struct ctx dummy;
 	struct ctx new;
-	ctx_make(&new, exectramp, (char *) copyargv);
+	ctx_make(&new, exectramp, (char*)copyargv);
 
 	irq_disable();
-	current->main = (void *) ehdr->e_entry;
+	current->main = (void*)ehdr->e_entry;
 	current->argv = copyargv;
 	current->argc = copyarg - copyargv;
 	ctx_switch(&dummy, &new);
 }
 
-static void inittramp(void *arg) {
-	char *args = {NULL};
+static void inittramp(void* arg) {
+	char *args = { NULL };
 	do_exec("init", &args);
 }
 
-static void forktramp(void *arg) {
+static void forktramp(void* arg) {
 	vmctx_apply(&current->vm);
 
 	struct ctx dummy;
@@ -542,7 +535,7 @@ static void vmctx_copy(struct vmctx *dst, struct vmctx *src) {
 }
 
 static int do_fork(unsigned long sp) {
-	struct task *t = sched_new(forktramp, (void *) sp, 0);
+	struct task *t = sched_new(forktramp, (void*)sp, 0);
 	vmctx_copy(&t->vm, &current->vm);
 	policy_run(t);
 }

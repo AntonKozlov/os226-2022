@@ -1,4 +1,3 @@
-
 .text
 .global tramptramp, exittramp
 tramptramp:
