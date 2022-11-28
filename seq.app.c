@@ -5,7 +5,8 @@ int atoi(const char *str) {
 	int i = 0;
 	int rez = 0;
 	while (str[i] != '\0') {
-		rez += rez * 10 + str[i] - '0';
+		rez = rez * 10 + str[i] - '0';
+		i++;
 	}
 
 	return rez;
@@ -27,17 +28,18 @@ int itoa(int v, char *d) {
 		unsigv /= 10;
 	}
 
+	int len = cur - buf;
+
 	if (sign) {
 		*d = '-';
 		d++;
+		len++;
 	}
 	
-	int len = cur - buf;
-
 	while (cur > buf) {
+		cur--;
 		*d = *cur;
 		d++;
-		cur--;
 	}
 
 	return len;
