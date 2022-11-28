@@ -1,12 +1,47 @@
 #include "usyscall.h"
 
 char *strstr(const char *where, const char *what) {
+	while (*where != '\0') {
+		char* s = where;
+		char* n = what;
+		while (*s != '\0' && *n != '\0' && s == n) {
+			s++;
+			n++
+		}
+
+		if (*n == '\0') {
+			return (char*)where;
+		}
+
+		where++;
+	}
+
+	return NULL;
 }
 
 void *memchr(const void *str, int c, long unsigned n) {
+	char* end = (char*)(str + n);
+	for (char* p = (char*)str; p < end; p++) {
+		if (*p == c) {
+			return p;
+		}
+	}
+
+	return NULL;
 }
 
 void *memmove(void *dst, const void *src, long unsigned n) {
+	char buf[n];
+	char* d = (char*)dst;
+	char* s = (char*)s;
+	for (int i = 0; i < n; i++) {
+		buf[i] = s[i];
+	}
+	for (int i = 0; i < n; i++) {
+		d[i] = buf[i];
+	}
+
+	return d;
 }
 
 int main(int argc, char* argv[]) {
