@@ -125,6 +125,9 @@ static int do_fork(unsigned long sp);
 static void set_fd(struct task *t, int fd, struct file *newf);
 static int pipe_read(int fd, void *buf, unsigned sz);
 
+static int pipe_write(int fd, const void *buf, unsigned int sz);
+static struct pipe *fd2pipe(int fd, bool *read);
+
 static int time;
 
 static int current_start;
@@ -597,6 +600,17 @@ static int do_fork(unsigned long sp) {
 }
 
 int sys_exit(int code) {
+	for (int i = 1; i < FD_MAX; i++) {
+		if (current->fd[i] != NULL) {
+			struct pipe* p = fd2pipe(i, NULL);
+			struct file* f = current->fd[i];
+			if (f->ops->read == pipe_read) {
+				p->rdclose = 1;
+			} else if (f->ops->write == pipe_write) {
+				sys_close(i);
+			}
+		}
+	}
 	doswitch();
 }
 
@@ -670,12 +684,42 @@ static int min(int a, int b) {
 
 static int pipe_read(int fd, void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+	int readed = 0;
+
+	while (readed < sz && !(p->wrclose == 1u && p->wr == p->rd)) {
+		if (p->wr == p->rd) {
+			sched_sleep(0);
+		} else {
+			((char*)buf)[readed] = p->buf[p->rd];
+			readed++;
+			p->rd++;
+		}
+		if (p->rd == sizeof(p->buf)) {
+			p->rd = 0;
+		}
+	}
+
+	return readed;
 }
 
 static int pipe_write(int fd, const void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+	int wrote = 0;
+
+	while (wrote < sz && !(p->rdclose == 1u && p->wr == p->rd)) {
+		if (p->wr + 1 % sizeof(buf) == p->rd) {
+			sched_sleep(0);
+		} else {
+			p->buf[p->wr] = ((char*)buf)[wrote];
+			wrote++;
+			p->wr++;
+		}
+		if (p->wr == sizeof(p->buf)) {
+			p->wr = 0;
+		}
+	}
+
+	return wrote;
 }
 
 static int pipe_close(int fd) {
