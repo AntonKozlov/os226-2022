@@ -1,19 +1,15 @@
 #include "usyscall.h"
 
 char *strstr(const char *where, const char *what) {
-	while (*where != '\0') {
+	for ( ; *where != '\0'; where++) {
 		char* s = where;
 		char* n = what;
-		while (*s != '\0' && *n != '\0' && *s == *n) {
-			s++;
-			n++;
-		}
+
+		for ( ; *s != '\0' && *n != '\0' && *s == *n; s++, n++);
 
 		if (*n == '\0') {
 			return (char*)where;
 		}
-
-		where++;
 	}
 
 	return 0;

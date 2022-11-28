@@ -2,9 +2,7 @@
 
 long unsigned strlen(const char *str) {
 	char* cur = str;
-	while (*cur != '\0') {
-		cur++;
-	}
+	while (*cur++ != '\0');
 
 	return cur - str;
 }

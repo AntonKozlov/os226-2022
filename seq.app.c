@@ -2,11 +2,10 @@
 
 
 int atoi(const char *str) {
-	int i = 0;
 	int rez = 0;
-	while (str[i] != '\0') {
+
+	for (int i = 0; str[i] != '\0'; i++) {
 		rez = rez * 10 + str[i] - '0';
-		i++;
 	}
 
 	return rez;
@@ -23,23 +22,19 @@ int itoa(int v, char *d) {
 	char* cur = buf;
 
 	while (unsigv > 0) {
-		*cur = (char)(unsigv % 10 + '0');
-		cur++;
+		*cur++ = (char)(unsigv % 10 + '0');
 		unsigv /= 10;
 	}
 
 	int len = cur - buf;
 
 	if (sign) {
-		*d = '-';
-		d++;
+		*d++ = '-';
 		len++;
 	}
 	
 	while (cur > buf) {
-		cur--;
-		*d = *cur;
-		d++;
+		*d++ = *--cur;
 	}
 
 	return len;

@@ -691,9 +691,7 @@ static int pipe_read(int fd, void *buf, unsigned sz) {
 		if (p->wr == p->rd) {
 			sched_sleep(0);
 		} else {
-			((char*)buf)[readed] = p->buf[p->rd];
-			readed++;
-			p->rd++;
+			((char*)buf)[readed++] = p->buf[p->rd++];
 		}
 		if (p->rd == sizeof(p->buf)) {
 			p->rd = 0;
@@ -711,9 +709,7 @@ static int pipe_write(int fd, const void *buf, unsigned sz) {
 		if (p->wr + 1 % sizeof(buf) == p->rd) {
 			sched_sleep(0);
 		} else {
-			p->buf[p->wr] = ((char*)buf)[wrote];
-			wrote++;
-			p->wr++;
+			p->buf[p->wr++] = ((char*)buf)[wrote++];
 		}
 		if (p->wr == sizeof(p->buf)) {
 			p->wr = 0;
