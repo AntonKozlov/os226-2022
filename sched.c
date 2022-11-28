@@ -607,6 +607,7 @@ int sys_exit(int code) {
 			if (f->ops->read == pipe_read) {
 				p->rdclose = 1;
 			} else if (f->ops->write == pipe_write) {
+				p->wrclose = 1;
 				sys_close(i);
 			}
 		}
