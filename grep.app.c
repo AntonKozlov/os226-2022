@@ -6,7 +6,7 @@ char *strstr(const char *where, const char *what) {
 		char* n = what;
 		while (*s != '\0' && *n != '\0' && s == n) {
 			s++;
-			n++
+			n++;
 		}
 
 		if (*n == '\0') {
@@ -16,7 +16,7 @@ char *strstr(const char *where, const char *what) {
 		where++;
 	}
 
-	return NULL;
+	return 0;
 }
 
 void *memchr(const void *str, int c, long unsigned n) {
@@ -27,7 +27,7 @@ void *memchr(const void *str, int c, long unsigned n) {
 		}
 	}
 
-	return NULL;
+	return 0;
 }
 
 void *memmove(void *dst, const void *src, long unsigned n) {

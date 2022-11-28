@@ -18,7 +18,7 @@ int itoa(int v, char *d) {
 		unsigv *= -1;
 	}
 
-	char* buf[32];
+	char buf[32];
 	char* cur = buf;
 
 	while (unsigv > 0) {
