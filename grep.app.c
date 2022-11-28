@@ -31,16 +31,10 @@ void *memchr(const void *str, int c, long unsigned n) {
 }
 
 void *memmove(void *dst, const void *src, long unsigned n) {
-	char buf[n]; 
-	char *d = dst; 
-	char *s = (char *) src;
-    for (int i = 0; i < n; i++) {
-		buf[i] = s[i];
-	}
-    for (int i = 0; i < n; i++) {
-		d[i] = buf[i];
-	}
-    return d;
+	char buf[n], *d = dst, *s = (char *) src;
+    for (long unsigned i = 0; i < n; i++) buf[i] = s[i];
+    for (long unsigned i = 0; i < n; i++) d[i] = buf[i];
+    return dst;
 }
 
 int main(int argc, char* argv[]) {
