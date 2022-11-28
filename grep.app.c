@@ -4,7 +4,7 @@ char *strstr(const char *where, const char *what) {
 	while (*where != '\0') {
 		char* s = where;
 		char* n = what;
-		while (*s != '\0' && *n != '\0' && s == n) {
+		while (*s != '\0' && *n != '\0' && *s == *n) {
 			s++;
 			n++;
 		}
