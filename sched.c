@@ -40,6 +40,7 @@
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
+
 extern void exittramp(void);
 
 struct vmctx {
@@ -50,7 +51,9 @@ struct vmctx {
 
 struct fileops {
 	int (*read)(int fd, void *buf, unsigned sz);
+
 	int (*write)(int fd, const void *buf, unsigned sz);
+
 	int (*close)(int fd);
 };
 
@@ -65,8 +68,10 @@ struct task {
 
 	union {
 		struct ctx ctx;
+
 		struct {
-			int(*main)(int, char**);
+			int (*main)(int, char **);
+
 			int argc;
 			char **argv;
 		};
@@ -75,6 +80,7 @@ struct task {
 	struct file *fd[FD_MAX];
 
 	void (*entry)(void *as);
+
 	void *as;
 	int priority;
 
@@ -114,16 +120,23 @@ struct pipe {
 	unsigned long rd, wr;
 	struct file rdend, wrend;
 	struct task *q;
-	unsigned rdclose : 1;
-	unsigned wrclose : 1;
+	unsigned rdclose: 1;
+	unsigned wrclose: 1;
 };
 static struct pipe pipearray[4];
 static struct pool pipepool = POOL_INITIALIZER_ARRAY(pipearray);
 
 static void syscallbottom(unsigned long sp);
+
 static int do_fork(unsigned long sp);
+
 static void set_fd(struct task *t, int fd, struct file *newf);
+
 static int pipe_read(int fd, void *buf, unsigned sz);
+
+static int pipe_write(int fd, const void *buf, unsigned int sz);
+
+static struct pipe *fd2pipe(int fd, bool *read);
 
 static int time;
 
@@ -220,10 +233,10 @@ static void vmctx_apply(struct vmctx *vm) {
 			continue;
 		}
 		void *addr = mmap(USER_START + i * PAGE_SIZE,
-				PAGE_SIZE,
-				PROT_READ | PROT_WRITE | PROT_EXEC,
-				MAP_SHARED | MAP_FIXED,
-				memfd, vm->map[i] * PAGE_SIZE);
+						  PAGE_SIZE,
+						  PROT_READ | PROT_WRITE | PROT_EXEC,
+						  MAP_SHARED | MAP_FIXED,
+						  memfd, vm->map[i] * PAGE_SIZE);
 		if (addr == MAP_FAILED) {
 			perror("mmap");
 			abort();
@@ -252,8 +265,8 @@ static void tasktramp(void) {
 }
 
 struct task *sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
+					   void *aspace,
+					   int priority) {
 
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
@@ -307,8 +320,6 @@ static void hctx_push(greg_t *regs, unsigned long val) {
 }
 
 static void timerbottom() {
-	irq_disable();
-
 	time += TICK_PERIOD;
 
 	while (waitq && waitq->waketime <= sched_gettime()) {
@@ -318,11 +329,11 @@ static void timerbottom() {
 	}
 
 	if (TICK_PERIOD <= sched_gettime() - current_start) {
+		irq_disable();
 		policy_run(current);
 		doswitch();
+		irq_enable();
 	}
-
-	irq_enable();
 }
 
 static unsigned long bottom(unsigned long sp, int sig) {
@@ -339,7 +350,7 @@ static void top(int sig, siginfo_t *info, void *ctx) {
 	greg_t *regs = uc->uc_mcontext.gregs;
 
 	if (sig == SIGSEGV) {
-		uint16_t insn = *(uint16_t*)regs[REG_RIP];
+		uint16_t insn = *(uint16_t *) regs[REG_RIP];
 		if (insn != 0x81cd) {
 			abort();
 		}
@@ -362,8 +373,8 @@ long sched_gettime(void) {
 	int time2 = time;
 
 	return (cnt1 <= cnt2) ?
-		time1 + cnt2 :
-		time2 + cnt2;
+		   time1 + cnt2 :
+		   time2 + cnt2;
 }
 
 void sched_run(void) {
@@ -397,9 +408,9 @@ void sched_run(void) {
 }
 
 static void syscallbottom(unsigned long sp) {
-	struct savedctx *sc = (struct savedctx *)sp;
+	struct savedctx *sc = (struct savedctx *) sp;
 
-	uint16_t insn = *(uint16_t*)sc->rip;
+	uint16_t insn = *(uint16_t *) sc->rip;
 	if (insn != 0x81cd) {
 		abort();
 	}
@@ -410,8 +421,8 @@ static void syscallbottom(unsigned long sp) {
 		sc->rax = do_fork(sp);
 	} else {
 		sc->rax = syscall_do(sc->rax, sc->rbx,
-				sc->rcx, sc->rdx,
-				sc->rsi, (void *) sc->rdi);
+							 sc->rcx, sc->rdx,
+							 sc->rsi, (void *) sc->rdi);
 	}
 }
 
@@ -452,7 +463,8 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	strcpy(elfpath, path);
+	strcat(elfpath, ".app");
 	int fd = open(elfpath, O_RDONLY);
 	if (fd < 0) {
 		perror("open");
@@ -474,9 +486,9 @@ int sys_exec(const char *path, char **argv) {
 
 	const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) rawelf;
 	if (!ehdr->e_phoff ||
-			!ehdr->e_phnum ||
-			!ehdr->e_entry ||
-			ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
+		!ehdr->e_phnum ||
+		!ehdr->e_entry ||
+		ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
 		printf("bad ehdr\n");
 		return 1;
 	}
@@ -492,14 +504,14 @@ int sys_exec(const char *path, char **argv) {
 			printf("bad section\n");
 			return 1;
 		}
-		void *phend = (void*)(ph->p_vaddr + ph->p_memsz);
+		void *phend = (void *) (ph->p_vaddr + ph->p_memsz);
 		if (maxaddr < phend) {
 			maxaddr = phend;
 		}
 	}
 
 	char **copyargv = USER_START + (USER_PAGES - 1) * PAGE_SIZE;
-	char *copybuf = (char*)(copyargv + 32);
+	char *copybuf = (char *) (copyargv + 32);
 	char *const *arg = argv;
 	char **copyarg = copyargv;
 	while (*arg) {
@@ -525,11 +537,11 @@ int sys_exec(const char *path, char **argv) {
 		if (ph->p_type != PT_LOAD) {
 			continue;
 		}
-		memcpy((void*)ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
-		int prot = (ph->p_flags & PF_X ? PROT_EXEC  : 0) |
-			(ph->p_flags & PF_W ? PROT_WRITE : 0) |
-			(ph->p_flags & PF_R ? PROT_READ  : 0);
-		if (vmprotect((void*)ph->p_vaddr, ph->p_memsz, prot)) {
+		memcpy((void *) ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
+		int prot = (ph->p_flags & PF_X ? PROT_EXEC : 0) |
+				   (ph->p_flags & PF_W ? PROT_WRITE : 0) |
+				   (ph->p_flags & PF_R ? PROT_READ : 0);
+		if (vmprotect((void *) ph->p_vaddr, ph->p_memsz, prot)) {
 			printf("vmprotect section failed\n");
 			return 1;
 		}
@@ -537,21 +549,21 @@ int sys_exec(const char *path, char **argv) {
 
 	struct ctx dummy;
 	struct ctx new;
-	ctx_make(&new, exectramp, (char*)copyargv);
+	ctx_make(&new, exectramp, (char *) copyargv);
 
 	irq_disable();
-	current->main = (void*)ehdr->e_entry;
+	current->main = (void *) ehdr->e_entry;
 	current->argv = copyargv;
 	current->argc = copyarg - copyargv;
 	ctx_switch(&dummy, &new);
 }
 
-static void inittramp(void* arg) {
-	char *args = { NULL };
+static void inittramp(void *arg) {
+	char *args = {NULL};
 	sys_exec("init", &args);
 }
 
-static void forktramp(void* arg) {
+static void forktramp(void *arg) {
 	vmctx_apply(&current->vm);
 
 	struct savedctx *sc = arg;
@@ -564,30 +576,30 @@ static void forktramp(void* arg) {
 }
 
 static void copyrange(struct vmctx *vm, unsigned from, unsigned to) {
-        for (unsigned i = from; i < to; ++i) {
+	for (unsigned i = from; i < to; ++i) {
 		vm->map[i] = bitmap_alloc(bitmap_pages, sizeof(bitmap_pages));
 		if (vm->map[i] == -1) {
 			abort();
 		}
-                if (-1 == pwrite(memfd,
-                                USER_START + i * PAGE_SIZE,
-                                PAGE_SIZE,
-				vm->map[i] * PAGE_SIZE)) {
-                        perror("pwrite");
-                        abort();
-                }
-        }
+		if (-1 == pwrite(memfd,
+						 USER_START + i * PAGE_SIZE,
+						 PAGE_SIZE,
+						 vm->map[i] * PAGE_SIZE)) {
+			perror("pwrite");
+			abort();
+		}
+	}
 }
 
 static void vmctx_copy(struct vmctx *dst, struct vmctx *src) {
-        dst->brk = src->brk;
-        dst->stack = src->stack;
-        copyrange(dst, 0, src->brk);
-        copyrange(dst, src->stack, USER_PAGES - 1);
+	dst->brk = src->brk;
+	dst->stack = src->stack;
+	copyrange(dst, 0, src->brk);
+	copyrange(dst, src->stack, USER_PAGES - 1);
 }
 
 static int do_fork(unsigned long sp) {
-	struct task *t = sched_new(forktramp, (void*)sp, 0);
+	struct task *t = sched_new(forktramp, (void *) sp, 0);
 	vmctx_copy(&t->vm, &current->vm);
 	for (int i = 0; i < FD_MAX; ++i) {
 		set_fd(t, i, current->fd[i]);
@@ -597,6 +609,15 @@ static int do_fork(unsigned long sp) {
 }
 
 int sys_exit(int code) {
+	for (int i = 0; i < FD_MAX; i++) {
+		if (current->fd[i] != NULL) {
+			struct pipe *p = fd2pipe(i, NULL);
+			if (current->fd[i]->ops->read == pipe_read)
+				p->rdclose = 1;
+			else if (current->fd[i]->ops->write == pipe_write) p->wrclose = 1;
+			sys_close(i);
+		}
+	}
 	doswitch();
 }
 
@@ -661,7 +682,7 @@ static struct pipe *fd2pipe(int fd, bool *read) {
 		*read = r;
 	}
 	int off = r ? offsetof(struct pipe, rdend) : offsetof(struct pipe, wrend);
-	return (struct pipe *)((char*)f - off);
+	return (struct pipe *) ((char *) f - off);
 }
 
 static int min(int a, int b) {
@@ -670,12 +691,25 @@ static int min(int a, int b) {
 
 static int pipe_read(int fd, void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+	int current = 0;
+	while (current < sz && !(p->wrclose == 1u && p->rd == p->wr)) {
+		if (p->rd == p->wr) sched_sleep(0);
+		else ((char *) buf)[current++] = p->buf[p->rd++];
+		if (p->rd == sizeof(p->buf)) p->rd = 0;
+	}
+	return current;
 }
 
 static int pipe_write(int fd, const void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+	int current = 0;
+	while (current < sz && !(p->rdclose == 1u && p->wr == p->rd)) {
+		if ((p->wr + 1) % sizeof(buf) == p->rd)
+			sched_sleep(0);
+		else p->buf[p->wr++] = ((char *) buf)[current++];
+		if (p->wr == sizeof(p->buf)) p->wr = 0;
+	}
+	return current;
 }
 
 static int pipe_close(int fd) {
@@ -700,12 +734,12 @@ static int pipe_close(int fd) {
 }
 
 static const struct fileops pipe_rd_ops = {
-	.read = pipe_read,
-	.close = pipe_close,
+		.read = pipe_read,
+		.close = pipe_close,
 };
 static const struct fileops pipe_wr_ops = {
-	.write = pipe_write,
-	.close = pipe_close,
+		.write = pipe_write,
+		.close = pipe_close,
 };
 
 static void init_file(struct file *f, const struct fileops *ops) {
@@ -741,9 +775,9 @@ int sys_pipe(int *pipe) {
 	pipe[1] = fdw;
 	return 0;
 
-err_clean:
+	err_clean:
 	pool_free(&pipepool, p);
-err:
+	err:
 	return -1;
 }
 
@@ -757,8 +791,8 @@ static int fd_term_write(int fd, const void *buf, unsigned sz) {
 
 int main(int argc, char *argv[]) {
 	struct sigaction act = {
-		.sa_sigaction = top,
-		.sa_flags = SA_RESTART,
+			.sa_sigaction = top,
+			.sa_flags = SA_RESTART,
 	};
 	sigemptyset(&act.sa_mask);
 
@@ -784,8 +818,8 @@ int main(int argc, char *argv[]) {
 
 	struct file term;
 	struct fileops termops = {
-		.read = fd_term_read,
-		.write = fd_term_write,
+			.read = fd_term_read,
+			.write = fd_term_write,
 	};
 	init_file(&term, &termops);
 	set_fd(t, 0, &term);
@@ -795,3 +829,4 @@ int main(int argc, char *argv[]) {
 	policy_run(t);
 	sched_run();
 }
+
