@@ -7,9 +7,6 @@ char *strstr(const char *where, const char *what) {
 
 		for ( ; *char_where != '\0' && *char_what != '\0' && *char_where == *char_what;
 			char_where++, char_what++);
-		if ('\0' == *char_where) {
-			return 0;
-		}
 		if ('\0' == *char_what) {
 			return (char*)where;
 		}
