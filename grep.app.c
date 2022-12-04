@@ -11,7 +11,7 @@ char *strstr(const char *where, const char *what) {
 			return (char*)where;
 		}
 	}
-	return 0;
+	return (char*)0;
 }
 
 void *memchr(const void *str, int c, long unsigned n) {
