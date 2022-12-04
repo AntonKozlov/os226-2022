@@ -1,12 +1,44 @@
 #include "usyscall.h"
 
 char *strstr(const char *where, const char *what) {
+	while (*where != '\0') {
+		char *char_where = where, *char_what = what;
+		while ('\0' != *char_what && '\0' != *char_where && *char_where == *char_what) {
+			if ('\0' == *char_where) {
+				return (char*) 0;
+			}
+			if ('\0' == *char_what) {
+				return (char*)where;
+			}
+			char_what++;
+			char_where++;
+		}
+		where++;
+	}
+	return (char*) 0;
 }
 
 void *memchr(const void *str, int c, long unsigned n) {
+	const char *term = str + n;
+	for (const char *pos = str; pos < term; pos++) {
+		if (c == *pos) {
+			return (void*)pos;
+		}
+	}
+	return (void*)0;
 }
 
 void *memmove(void *dst, const void *src, long unsigned n) {
+	//https://stackoverflow.com/questions/3572309/memmove-implementation-in-c
+	char *char_src = (char*)src;
+	char *char_dst = (char*)dst;
+	char x[n];
+	char *t = x;
+	for (unsigned long i = 0; i < n; i++)
+		t[i] = char_src[i];
+	for (unsigned long i = 0; i < n; i++)
+		char_dst[i] = t[i];
+	return dst;
 }
 
 int main(int argc, char* argv[]) {

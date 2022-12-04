@@ -124,7 +124,8 @@ static void syscallbottom(unsigned long sp);
 static int do_fork(unsigned long sp);
 static void set_fd(struct task *t, int fd, struct file *newf);
 static int pipe_read(int fd, void *buf, unsigned sz);
-
+static int pipe_write(int fd, const void *buf, unsigned int sz);
+static struct pipe *fd2pipe(int fd, bool *read);
 static int time;
 
 static int current_start;
@@ -452,7 +453,15 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	unsigned long i = 0;
+	while ('\0' != path[i] && i < sizeof(elfpath) - 5) {
+		elfpath[i++] = path[i];
+	}
+	elfpath[i++] = '.';
+	elfpath[i++] = 'a';
+	elfpath[i++] = 'p';
+	elfpath[i++] = 'p';
+	elfpath[i++] = '\0';
 	int fd = open(elfpath, O_RDONLY);
 	if (fd < 0) {
 		perror("open");
@@ -597,6 +606,18 @@ static int do_fork(unsigned long sp) {
 }
 
 int sys_exit(int code) {
+	for (unsigned int i = 0; i < FD_MAX; i++) {
+		if (NULL != current->fd[i]) {
+			struct pipe *p = fd2pipe(i, NULL);
+			if (pipe_read == current->fd[i]->ops->read) {
+				p->rdclose = 1;
+			}
+			else if (pipe_write == current->fd[i]->ops->write) {
+				p->wrclose = 1;
+			}
+			sys_close(i);
+		}
+	}
 	doswitch();
 }
 
@@ -670,12 +691,40 @@ static int min(int a, int b) {
 
 static int pipe_read(int fd, void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+	unsigned int c = 0;
+	while ((0 == p->wrclose || p->wr != p->rd) && c < sz) {
+		if (p->wr != p->rd) {
+			((char*)buf)[c++] = p->buf[p->rd++];
+			((char*)buf)[c] = '\0';
+		}
+		else {
+			sched_sleep(0);
+		}
+		if (sizeof(p->buf) == p->rd) {
+			p->rd = 0;
+		}
+	}
+	return c;
 }
 
 static int pipe_write(int fd, const void *buf, unsigned sz) {
 	struct pipe *p = fd2pipe(fd, NULL);
-	return -1;
+	unsigned int c = 0;
+	while (0 == p->rdclose && c < sz) {
+		if ((p->wr + 1) % sizeof(p->buf) != p->rd) {
+			p->buf[p->wr++] = ((char *) buf)[c++];
+		}
+		else {
+			sched_sleep(0);
+
+		}
+		if (sizeof(p->buf) == p->wr) {
+			p->wr = 0;
+		}
+
+	}
+
+	return c;
 }
 
 static int pipe_close(int fd) {
