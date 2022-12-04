@@ -1,21 +1,20 @@
 #include "usyscall.h"
 
 char *strstr(const char *where, const char *what) {
-	while (*where != '\0') {
-		char *char_where = where, *char_what = what;
-		while ('\0' != *char_what && '\0' != *char_where && *char_where == *char_what) {
-			if ('\0' == *char_where) {
-				return (char*) 0;
-			}
-			if ('\0' == *char_what) {
-				return (char*)where;
-			}
-			char_what++;
-			char_where++;
+	for ( ; *where != '\0'; where++) {
+		char* char_where = where;
+		char* char_what = what;
+
+		for ( ; *char_where != '\0' && *char_what != '\0' && *char_where == *char_what;
+			char_where++, char_what++);
+		if ('\0' == *char_where) {
+			return 0;
 		}
-		where++;
+		if ('\0' == *char_what) {
+			return (char*)where;
+		}
 	}
-	return (char*) 0;
+	return 0;
 }
 
 void *memchr(const void *str, int c, long unsigned n) {
