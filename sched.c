@@ -463,7 +463,8 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	strcpy(elfpath, path);
+	strcat(elfpath, ".app");
 	int fd = open(elfpath, O_RDONLY);
 	if (fd < 0) {
 		perror("open");
@@ -608,11 +609,11 @@ static int do_fork(unsigned long sp) {
 }
 
 int sys_exit(int code) {
-	for (size_t i = 0; i < FD_MAX; i++) {
+	for (int i = 0; i < FD_MAX; i++) {
 		if (current->fd[i] != NULL) {
 			struct pipe *p = fd2pipe(i, NULL);
 			if (current->fd[i]->ops->read == pipe_read) p->rdclose = 1;
-			else if (current->fd[i]->ops->write == pipe_write)p->wrclose = 1;
+			else if (current->fd[i]->ops->write == pipe_write) p->wrclose = 1;
 			sys_close(i);
 		}
 	}
