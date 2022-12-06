@@ -453,13 +453,60 @@ static void exectramp(void) {
 	abort();
 }
 
+#define CPIO_MAGIC 070707
+#define CPIO_END "TRAILER!!!"
+
+typedef struct cpio_header {
+	unsigned short c_magic;
+	unsigned short c_dev;
+	unsigned short c_ino;
+	unsigned short c_mode;
+	unsigned short c_uid;
+	unsigned short c_gid;
+	unsigned short c_nlink;
+	unsigned short c_rdev;
+	unsigned short c_mtime[2];
+	unsigned short c_namesize;
+	unsigned short c_filesize[2];
+} cpio_header;
+
+
+char *cpio_filename(cpio_header *hdr) {
+	return (void *) (hdr + 1);
+}
+
+uint cpio_datasize(cpio_header *hdr) {
+	return ((uint) hdr->c_filesize[0] << (sizeof(unsigned short) * CHAR_BIT)) | hdr->c_filesize[1];
+}
+
+void *cpio_data(cpio_header *hdr) {
+	return (void *) (hdr + 1) + hdr->c_namesize + (hdr->c_namesize % 2);
+}
+
+cpio_header *cpio_next_header(cpio_header *hdr) {
+	uint datasize = cpio_datasize(hdr);
+	return cpio_data(hdr) + datasize + (datasize % 2);
+}
+
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+//	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	strcpy(elfpath, path);
+	strcat(elfpath, ".app");
 
-	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
-	abort();
-	void *rawelf = NULL;
+	cpio_header *hdr;
+	for (hdr = rootfs; strcmp(elfpath, cpio_filename(hdr)); hdr = cpio_next_header(hdr)){
+		if (hdr->c_magic != CPIO_MAGIC) {
+			fprintf(stderr, "Magic number mismatch");
+            abort();
+		}
+		if (!strncmp(CPIO_END, cpio_filename(hdr), hdr->c_namesize)) {
+			fprintf(stderr, "File not found");
+			abort();
+		}
+	}
+
+	void *rawelf = cpio_data(hdr);
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
