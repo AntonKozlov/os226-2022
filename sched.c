@@ -477,7 +477,7 @@ int sys_exec(const char *path, char **argv) {
 	for (hdr = rootfs; strcmp(elfpath, (const char *)(hdr + 1));) {
 		if (hdr->c_magic != 29127) {
 			fprintf(stderr, "Magic mismatch");
-            return 1;
+			return 1;
 		}
 		else if (!strncmp("TRAILER!!!", (const char *)(hdr + 1), hdr->c_namesize)) {
 			fprintf(stderr, "File not found");
@@ -485,9 +485,7 @@ int sys_exec(const char *path, char **argv) {
 		}
 		else {
 			unsigned filesize = ((unsigned)hdr->c_filesize[0] << 16) + hdr->c_filesize[1];
-			hdr = (void *)(hdr + 1) +
-				 hdr->c_namesize + hdr->c_namesize % 2 +
-				 filesize + filesize % 2;
+			hdr = (void *)(hdr + 1) + hdr->c_namesize + hdr->c_namesize % 2 + filesize + filesize % 2;
 		}
 	}
 
