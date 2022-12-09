@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <elf.h>
+#include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/fcntl.h>
 
@@ -37,9 +38,27 @@
 
 #define offsetof(s, f) ((unsigned long)(&((s*)0)->f))
 
+#define CPIO_MAGIC 0x71c7
+#define CPIO_END "TRAILER!!!"
+
+struct cpio_hdr {
+	unsigned short c_magic;
+	unsigned short c_dev;
+	unsigned short c_ino;
+	unsigned short c_mode;
+	unsigned short c_uid;
+	unsigned short c_gid;
+	unsigned short c_nlink;
+	unsigned short c_rdev;
+	unsigned short c_mtime[2];
+	unsigned short c_namesize;
+	unsigned short c_filesize[2];
+};
+
 extern int shell(int argc, char *argv[]);
 
 extern void tramptramp(void);
+
 extern void exittramp(void);
 
 struct vmctx {
@@ -66,7 +85,7 @@ struct task {
 	union {
 		struct ctx ctx;
 		struct {
-			int(*main)(int, char**);
+			int (*main)(int, char **);
 			int argc;
 			char **argv;
 		};
@@ -114,15 +133,18 @@ struct pipe {
 	unsigned long rd, wr;
 	struct file rdend, wrend;
 	struct task *q;
-	unsigned rdclose : 1;
-	unsigned wrclose : 1;
+	unsigned rdclose: 1;
+	unsigned wrclose: 1;
 };
 static struct pipe pipearray[4];
 static struct pool pipepool = POOL_INITIALIZER_ARRAY(pipearray);
 
 static void syscallbottom(unsigned long sp);
+
 static int do_fork(unsigned long sp);
+
 static void set_fd(struct task *t, int fd, struct file *newf);
+
 static int pipe_read(int fd, void *buf, unsigned sz);
 
 static int time;
@@ -223,10 +245,10 @@ static void vmctx_apply(struct vmctx *vm) {
 			continue;
 		}
 		void *addr = mmap(USER_START + i * PAGE_SIZE,
-				PAGE_SIZE,
-				PROT_READ | PROT_WRITE | PROT_EXEC,
-				MAP_SHARED | MAP_FIXED,
-				memfd, vm->map[i] * PAGE_SIZE);
+		                  PAGE_SIZE,
+		                  PROT_READ | PROT_WRITE | PROT_EXEC,
+		                  MAP_SHARED | MAP_FIXED,
+		                  memfd, vm->map[i] * PAGE_SIZE);
 		if (addr == MAP_FAILED) {
 			perror("mmap");
 			abort();
@@ -254,10 +276,7 @@ static void tasktramp(void) {
 	doswitch();
 }
 
-struct task *sched_new(void (*entrypoint)(void *aspace),
-		void *aspace,
-		int priority) {
-
+struct task *sched_new(void (*entrypoint)(void *aspace), void *aspace, int priority) {
 	struct task *t = pool_alloc(&taskpool);
 	t->entry = entrypoint;
 	t->as = aspace;
@@ -270,7 +289,6 @@ struct task *sched_new(void (*entrypoint)(void *aspace),
 }
 
 void sched_sleep(unsigned ms) {
-
 	if (!ms) {
 		irq_disable();
 		policy_run(current);
@@ -342,7 +360,7 @@ static void top(int sig, siginfo_t *info, void *ctx) {
 	greg_t *regs = uc->uc_mcontext.gregs;
 
 	if (sig == SIGSEGV) {
-		uint16_t insn = *(uint16_t*)regs[REG_RIP];
+		uint16_t insn = *(uint16_t *) regs[REG_RIP];
 		if (insn != 0x81cd) {
 			abort();
 		}
@@ -364,9 +382,7 @@ long sched_gettime(void) {
 	int cnt2 = timer_cnt() / 1000;
 	int time2 = time;
 
-	return (cnt1 <= cnt2) ?
-		time1 + cnt2 :
-		time2 + cnt2;
+	return (cnt1 <= cnt2) ? time1 + cnt2 : time2 + cnt2;
 }
 
 void sched_run(void) {
@@ -400,9 +416,9 @@ void sched_run(void) {
 }
 
 static void syscallbottom(unsigned long sp) {
-	struct savedctx *sc = (struct savedctx *)sp;
+	struct savedctx *sc = (struct savedctx *) sp;
 
-	uint16_t insn = *(uint16_t*)sc->rip;
+	uint16_t insn = *(uint16_t *) sc->rip;
 	if (insn != 0x81cd) {
 		abort();
 	}
@@ -413,8 +429,8 @@ static void syscallbottom(unsigned long sp) {
 		sc->rax = do_fork(sp);
 	} else {
 		sc->rax = syscall_do(sc->rax, sc->rbx,
-				sc->rcx, sc->rdx,
-				sc->rsi, (void *) sc->rdi);
+		                     sc->rcx, sc->rdx,
+		                     sc->rsi, (void *) sc->rdi);
 	}
 }
 
@@ -455,13 +471,32 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	strcpy(elfpath, path);
+	strcat(elfpath, ".app");
 
-	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
-	abort();
 	void *rawelf = NULL;
 
-	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
+	for (void *ptr = rootfs;;) {
+		struct cpio_hdr hdr = *(struct cpio_hdr *) ptr;
+
+		if (hdr.c_magic != CPIO_MAGIC) abort();
+
+		ptr = (struct cpio_hdr *) ptr + 1;
+
+		char *filename = ptr;
+		if (strcmp(filename, CPIO_END) == 0) abort();
+
+		ptr += hdr.c_namesize + hdr.c_namesize % 2;
+
+		if (strcmp(filename, elfpath) == 0) {
+			rawelf = ptr;
+			break;
+		}
+
+		ptr += ((uint) hdr.c_filesize[0] << 16) + hdr.c_filesize[1] + hdr.c_filesize[1] % 2;
+	}
+
+	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5) != 0) {
 		printf("ELF header mismatch\n");
 		return 1;
 	}
@@ -473,10 +508,7 @@ int sys_exec(const char *path, char **argv) {
 	//   Find entry point (e_entry)
 
 	const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *) rawelf;
-	if (!ehdr->e_phoff ||
-			!ehdr->e_phnum ||
-			!ehdr->e_entry ||
-			ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
+	if (!ehdr->e_phoff || !ehdr->e_phnum || !ehdr->e_entry || ehdr->e_phentsize != sizeof(Elf64_Phdr)) {
 		printf("bad ehdr\n");
 		return 1;
 	}
@@ -492,14 +524,14 @@ int sys_exec(const char *path, char **argv) {
 			printf("bad section\n");
 			return 1;
 		}
-		void *phend = (void*)(ph->p_vaddr + ph->p_memsz);
+		void *phend = (void *) (ph->p_vaddr + ph->p_memsz);
 		if (maxaddr < phend) {
 			maxaddr = phend;
 		}
 	}
 
 	char **copyargv = USER_START + (USER_PAGES - 1) * PAGE_SIZE;
-	char *copybuf = (char*)(copyargv + 32);
+	char *copybuf = (char *) (copyargv + 32);
 	char *const *arg = argv;
 	char **copyarg = copyargv;
 	while (*arg) {
@@ -525,11 +557,11 @@ int sys_exec(const char *path, char **argv) {
 		if (ph->p_type != PT_LOAD) {
 			continue;
 		}
-		memcpy((void*)ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
-		int prot = (ph->p_flags & PF_X ? PROT_EXEC  : 0) |
-			(ph->p_flags & PF_W ? PROT_WRITE : 0) |
-			(ph->p_flags & PF_R ? PROT_READ  : 0);
-		if (vmprotect((void*)ph->p_vaddr, ph->p_memsz, prot)) {
+		memcpy((void *) ph->p_vaddr, rawelf + ph->p_offset, ph->p_filesz);
+		int prot = (ph->p_flags & PF_X ? PROT_EXEC : 0) |
+		           (ph->p_flags & PF_W ? PROT_WRITE : 0) |
+		           (ph->p_flags & PF_R ? PROT_READ : 0);
+		if (vmprotect((void *) ph->p_vaddr, ph->p_memsz, prot)) {
 			printf("vmprotect section failed\n");
 			return 1;
 		}
@@ -537,21 +569,21 @@ int sys_exec(const char *path, char **argv) {
 
 	struct ctx dummy;
 	struct ctx new;
-	ctx_make(&new, exectramp, (char*)copyargv);
+	ctx_make(&new, exectramp, (char *) copyargv);
 
 	irq_disable();
-	current->main = (void*)ehdr->e_entry;
+	current->main = (void *) ehdr->e_entry;
 	current->argv = copyargv;
 	current->argc = copyarg - copyargv;
 	ctx_switch(&dummy, &new);
 }
 
-static void inittramp(void* arg) {
-	char *args = { NULL };
+static void inittramp(void *arg) {
+	char *args = {NULL};
 	sys_exec("init", &args);
 }
 
-static void forktramp(void* arg) {
+static void forktramp(void *arg) {
 	vmctx_apply(&current->vm);
 
 	struct savedctx *sc = arg;
@@ -564,30 +596,30 @@ static void forktramp(void* arg) {
 }
 
 static void copyrange(struct vmctx *vm, unsigned from, unsigned to) {
-        for (unsigned i = from; i < to; ++i) {
+	for (unsigned i = from; i < to; ++i) {
 		vm->map[i] = bitmap_alloc(bitmap_pages, sizeof(bitmap_pages));
 		if (vm->map[i] == -1) {
 			abort();
 		}
-                if (-1 == pwrite(memfd,
-                                USER_START + i * PAGE_SIZE,
-                                PAGE_SIZE,
-				vm->map[i] * PAGE_SIZE)) {
-                        perror("pwrite");
-                        abort();
-                }
-        }
+		if (-1 == pwrite(memfd,
+		                 USER_START + i * PAGE_SIZE,
+		                 PAGE_SIZE,
+		                 vm->map[i] * PAGE_SIZE)) {
+			perror("pwrite");
+			abort();
+		}
+	}
 }
 
 static void vmctx_copy(struct vmctx *dst, struct vmctx *src) {
-        dst->brk = src->brk;
-        dst->stack = src->stack;
-        copyrange(dst, 0, src->brk);
-        copyrange(dst, src->stack, USER_PAGES - 1);
+	dst->brk = src->brk;
+	dst->stack = src->stack;
+	copyrange(dst, 0, src->brk);
+	copyrange(dst, src->stack, USER_PAGES - 1);
 }
 
 static int do_fork(unsigned long sp) {
-	struct task *t = sched_new(forktramp, (void*)sp, 0);
+	struct task *t = sched_new(forktramp, (void *) sp, 0);
 	vmctx_copy(&t->vm, &current->vm);
 	for (int i = 0; i < FD_MAX; ++i) {
 		set_fd(t, i, current->fd[i]);
@@ -661,7 +693,7 @@ static struct pipe *fd2pipe(int fd, bool *read) {
 		*read = r;
 	}
 	int off = r ? offsetof(struct pipe, rdend) : offsetof(struct pipe, wrend);
-	return (struct pipe *)((char*)f - off);
+	return (struct pipe *) ((char *) f - off);
 }
 
 static int min(int a, int b) {
