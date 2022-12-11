@@ -454,12 +454,42 @@ static void exectramp(void) {
 }
 
 int sys_exec(const char *path, char **argv) {
-	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
 
-	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
-	abort();
-	void *rawelf = NULL;
+	struct cpio_hdr {
+		unsigned short c_magic;
+		unsigned short c_dev;
+		unsigned short c_ino;
+		unsigned short c_mode;
+		unsigned short c_uid;
+		unsigned short c_gid;
+		unsigned short c_nlink;
+		unsigned short c_rdev;
+		unsigned short c_mtime[2];
+		unsigned short c_namesize;
+		unsigned short c_filesize[2];
+	} *hdr;
+	
+	char elfpath[32];
+	strcpy(elfpath, path);
+	strcat(elfpath, ".app");
+	
+
+	for (hdr = rootfs; strcmp(elfpath, (const char *)(hdr + 1));) {
+		if (hdr->c_magic != 29127) {
+			fprintf(stderr, "Magic mismatch");
+			return 1;
+		}
+		else if (!strncmp("TRAILER!!!", (const char *)(hdr + 1), hdr->c_namesize)) {
+			fprintf(stderr, "File not found");
+			return 1;
+		}
+		else {
+			unsigned filesize = ((unsigned)hdr->c_filesize[0] << 16) + hdr->c_filesize[1];
+			hdr = (void *)(hdr + 1) + hdr->c_namesize + hdr->c_namesize % 2 + filesize + filesize % 2;
+		}
+	}
+
+	void *rawelf = (void *)(hdr + 1) + hdr->c_namesize + hdr->c_namesize % 2;;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
