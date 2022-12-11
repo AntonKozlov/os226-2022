@@ -150,6 +150,20 @@ static unsigned long bitmap_pages[MEM_PAGES / LONG_BITS];
 static void *rootfs;
 static unsigned long rootfs_sz;
 
+struct header_cpio {
+	unsigned short c_magic;
+	unsigned short c_dev;
+	unsigned short c_ino;
+	unsigned short c_mode;
+	unsigned short c_uid;
+	unsigned short c_gid;
+	unsigned short c_nlink;
+	unsigned short c_rdev;
+	unsigned short c_mtime[2];
+	unsigned short c_namesize;
+	unsigned short c_filesize[2];
+};
+
 void irq_disable(void) {
 	sigprocmask(SIG_BLOCK, &irqs, NULL);
 }
@@ -457,9 +471,22 @@ int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
 	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
 
-	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
-	abort();
-	void *rawelf = NULL;
+	struct header_cpio *header = rootfs;
+
+	while (0 != strcmp(elfpath, (const char*)(header + 1))) {
+		if (0x71c7 != header->c_magic) {
+			printf("header_cpio incongruity!");
+			return 1;
+		}
+		if (0 == strcmp("TRAILER!!!", (const char*)(header + 1))) {
+			printf("Not found");
+			return 1;
+		}
+		unsigned int f_size = header->c_filesize[1] + ((unsigned int) header->c_filesize[0] << 16);
+		header = (void*)(header + 1) + header->c_namesize % 2 + header->c_namesize + f_size + f_size % 2;
+	}
+	
+	void *rawelf = (void*)(header + 1) + header->c_namesize % 2 + header->c_namesize;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
