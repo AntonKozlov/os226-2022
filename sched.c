@@ -479,7 +479,7 @@ int sys_exec(const char *path, char **argv) {
 
 	struct header* header = (struct header*)rootfs;
 	while(strcmp((void*)(header + 1), elfpath)) {
-		if (header->magic != 0x71c7 || strcmp((void*) (header + 1), "TRAILER!!!") == 0) {
+		if (header->magic != CPIO_MAGIC || strcmp((void*) (header + 1), CPIO_END) == 0) {
 			abort();
 		}
 
@@ -489,7 +489,7 @@ int sys_exec(const char *path, char **argv) {
 			filesize + filesize % 2;
 	}
 
-	void *rawelf = (void *) (header + 1) + header->namesize + header->namesize % 2;;
+	void *rawelf = (void*) (header + 1) + header->namesize + header->namesize % 2;;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
