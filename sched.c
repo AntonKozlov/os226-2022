@@ -469,7 +469,15 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	unsigned long i = 0;
+	while ('\0' != path[i] && i < sizeof(elfpath) - 5) {
+		elfpath[i++] = path[i];
+	}
+	elfpath[i++] = '.';
+	elfpath[i++] = 'a';
+	elfpath[i++] = 'p';
+	elfpath[i++] = 'p';
+	elfpath[i++] = '\0';
 
 	struct header_cpio *header = rootfs;
 
@@ -485,7 +493,7 @@ int sys_exec(const char *path, char **argv) {
 		unsigned int f_size = header->c_filesize[1] + ((unsigned int) header->c_filesize[0] << 16);
 		header = (void*)(header + 1) + header->c_namesize % 2 + header->c_namesize + f_size + f_size % 2;
 	}
-	
+
 	void *rawelf = (void*)(header + 1) + header->c_namesize % 2 + header->c_namesize;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
