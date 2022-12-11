@@ -42,6 +42,9 @@ extern int shell(int argc, char *argv[]);
 extern void tramptramp(void);
 extern void exittramp(void);
 
+#define CPIO_MAGIC 0x71c7
+#define CPIO_END "TRAILER!!!"
+
 struct vmctx {
 	unsigned map[USER_PAGES];
 	unsigned brk;
@@ -107,6 +110,20 @@ struct savedctx {
 	unsigned long sig;
 	unsigned long oldsp;
 	unsigned long rip;
+};
+
+struct cpio_header {
+	unsigned char magic;
+	unsigned char dev;
+	unsigned char ino;
+	unsigned char mode;
+	unsigned char uid;
+	unsigned char gid;
+	unsigned char nlink;
+	unsigned char rdev;
+	unsigned char mtime[2];
+	unsigned char namesize;
+	unsigned char filesize[2];
 };
 
 struct pipe {
@@ -455,11 +472,27 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
+	strcpy(elfpath, path);
+    strcat(elfpath, ".app");
 
-	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
-	abort();
-	void *rawelf = NULL;
+	struct cpio_header* header = (struct cpio_header*)rootfs;
+
+	while (strcmp((char*)(header + 1), elfpath)) {
+		if (header->magic != CPIO_MAGIC) {
+			abort();
+		}
+		if (strcmp((char*)(header + 1), CPIO_END) == 0) {
+			abort();
+		}
+
+		unsigned filesize = ((unsigned)header->filesize[0] << 16) + header->filesize[1];
+
+		header = header + 1 +
+			header->namesize + header->namesize % 2 +
+			filesize + filesize % 2;
+	}
+
+	void *rawelf = (void*)(header + 1) + header->namesize + header->namesize % 2;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
