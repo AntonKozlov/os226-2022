@@ -11,6 +11,7 @@
 #include <elf.h>
 #include <sys/mman.h>
 #include <sys/fcntl.h>
+#include <sys/stat.h>
 
 #include "sched.h"
 #include "timer.h"
@@ -117,6 +118,21 @@ struct pipe {
 	unsigned rdclose : 1;
 	unsigned wrclose : 1;
 };
+
+struct cpio_header {
+	unsigned short c_magic;       
+	unsigned short c_dev;         
+	unsigned short c_ino;         
+	unsigned short c_mode;        
+	unsigned short c_uid;         
+	unsigned short c_gid;         
+	unsigned short c_nlink;       
+	unsigned short c_rdev;        
+	unsigned short c_mtime[2];    
+	unsigned short c_namesize;    
+	unsigned short c_filesize[2]; 
+};
+	
 static struct pipe pipearray[4];
 static struct pool pipepool = POOL_INITIALIZER_ARRAY(pipearray);
 
@@ -455,11 +471,23 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
-	snprintf(elfpath, sizeof(elfpath), "%s.app", path);
-
-	fprintf(stderr, "FIXME: find elf content in `rootfs`\n");
-	abort();
 	void *rawelf = NULL;
+
+	strcpy(elfpath, path);
+	strcat(elfpath, ".app");
+	
+	struct cpio_header *hdr = rootfs;
+	while(true) {
+		if (hdr->c_magic != 0x71c7 || strcmp((void *) (hdr + 1), "TRAILER!!!") == 0)
+			return 1;
+		
+		if (strncmp((void *) (hdr + 1), elfpath, hdr->c_namesize) == 0) {
+			rawelf = (void *) (hdr + 1) + hdr->c_namesize + hdr->c_namesize % 2;
+			break;
+		}
+		long fs = (((long) hdr->c_filesize[0]) << 16) + hdr->c_filesize[1];
+		hdr = (void *) (hdr + 1) + hdr->c_namesize + hdr->c_namesize % 2 + fs + fs % 2;
+	}
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
