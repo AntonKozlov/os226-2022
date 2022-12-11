@@ -112,18 +112,19 @@ struct savedctx {
 	unsigned long rip;
 };
 
-struct cpio_header {
-	unsigned char magic;
-	unsigned char dev;
-	unsigned char ino;
-	unsigned char mode;
-	unsigned char uid;
-	unsigned char gid;
-	unsigned char nlink;
-	unsigned char rdev;
-	unsigned char mtime[2];
-	unsigned char namesize;
-	unsigned char filesize[2];
+
+struct header {
+	unsigned short magic;       
+	unsigned short dev;         
+	unsigned short ino;         
+	unsigned short mode;        
+	unsigned short uid;         
+	unsigned short gid;         
+	unsigned short nlink;       
+	unsigned short rdev;        
+	unsigned short mtime[2];    
+	unsigned short namesize;    
+	unsigned short filesize[2]; 
 };
 
 struct pipe {
@@ -472,27 +473,23 @@ static void exectramp(void) {
 
 int sys_exec(const char *path, char **argv) {
 	char elfpath[32];
+
 	strcpy(elfpath, path);
-    strcat(elfpath, ".app");
+	strcat(elfpath, ".app");
 
-	struct cpio_header* header = (struct cpio_header*)rootfs;
-
-	while (strcmp((char*)(header + 1), elfpath)) {
-		if (header->magic != CPIO_MAGIC) {
-			abort();
-		}
-		if (strcmp((char*)(header + 1), CPIO_END) == 0) {
+	struct header* header = (struct header*)rootfs;
+	while(strcmp((void*)(header + 1), elfpath)) {
+		if (header->magic != 0x71c7 || strcmp((void*) (header + 1), "TRAILER!!!") == 0) {
 			abort();
 		}
 
-		unsigned filesize = ((unsigned)header->filesize[0] << 16) + header->filesize[1];
-
-		header = header + 1 +
-			header->namesize + header->namesize % 2 +
+		long filesize = (((long) header->filesize[0]) << 16) + header->filesize[1];
+		header = (void *) (header + 1) + 
+			header->namesize + header->namesize % 2 + 
 			filesize + filesize % 2;
 	}
 
-	void *rawelf = (void*)(header + 1) + header->namesize + header->namesize % 2;
+	void *rawelf = (void *) (header + 1) + header->namesize + header->namesize % 2;;
 
 	if (strncmp(rawelf, "\x7f" "ELF" "\x2", 5)) {
 		printf("ELF header mismatch\n");
